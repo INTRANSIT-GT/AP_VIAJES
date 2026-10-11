@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Registro de Viajes</title>
+
+  <!-- PWA (iPhone / Android) -->
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Viajes" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+
+  <!-- Tipografia de marca: Avenir Next -> sustituta libre Montserrat -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- ============================ LOGIN ============================ -->
+  <div id="login-view" class="login-wrap">
+    <form id="login-form" class="login-card" autocomplete="off">
+      <div class="brand">
+        <img class="brand-full" src="assets/logo-color.png" alt="In Transit" />
+        <h1>Registro de Viajes</h1>
+        <p class="muted">Acceso al sistema</p>
+      </div>
+
+      <label class="field">
+        <span>Usuario</span>
+        <input type="text" id="login-user" required placeholder="ej. norte" />
+      </label>
+      <label class="field">
+        <span>Contrasena</span>
+        <input type="password" id="login-pass" required placeholder="••••••••" />
+      </label>
+
+      <button type="submit" class="btn btn-primary btn-block">Entrar</button>
+      <div id="login-error" class="alert alert-error hidden"></div>
+
+      <details class="login-help">
+        <summary>Usuarios de prueba</summary>
+        <ul>
+          <li><b>admin / admin123</b> — Administrador (todo)</li>
+          <li><b>operativo / demo123</b> — Operativo (carga viajes del cliente asignado)</li>
+          <li><b>validador / demo123</b> — Validador (aprueba/rechaza liquidados)</li>
+          <li><b>facturador / demo123</b> — Facturador (asigna factura)</li>
+          <li><b>gtransporte / demo123</b> — Gerente Transporte</li>
+          <li><b>gcomercial / demo123</b> — Gerente Comercial</li>
+        </ul>
+      </details>
+
+      <div class="login-services" aria-hidden="true">
+        <img src="assets/svc-almacenaje.png" alt="Servicio de Almacenaje" title="Servicio de Almacenaje" />
+        <img src="assets/svc-transporte.png" alt="Servicio de Transporte" title="Servicio de Transporte" />
+        <img src="assets/svc-personal.png" alt="Personal Operativo y Administrativo" title="Personal Operativo y Administrativo" />
+        <img src="assets/svc-reacondicionamiento.png" alt="Reacondicionamiento de Producto" title="Reacondicionamiento de Producto" />
+      </div>
+    </form>
+  </div>
+
+  <!-- ============================ APP ============================== -->
+  <div id="app-view" class="app hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img class="brand-mini" src="assets/logo-white.png" alt="In Transit" />
+      </div>
+      <nav id="nav" class="nav"></nav>
+      <div class="sidebar-foot">
+        <div class="sync-state" id="sync-state">Datos locales</div>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div>
+          <h2 id="view-title">Registro de Viajes</h2>
+          <p id="view-sub" class="muted small"></p>
+        </div>
+        <div class="user-box">
+          <button id="btn-install" class="btn btn-ghost hidden" title="Instalar como aplicacion">Instalar</button>
+          <button id="btn-sync" class="btn btn-ghost" title="Sincronizar con la nube">Sync</button>
+          <div class="user-chip">
+            <div class="avatar" id="user-avatar">?</div>
+            <div>
+              <div id="user-name" class="strong">-</div>
+              <div id="user-role" class="muted small">-</div>
+            </div>
+          </div>
+          <button id="btn-logout" class="btn btn-ghost">Salir</button>
+        </div>
+      </header>
+
+      <main id="content" class="content"></main>
+    </div>
+  </div>
+
+  <!-- ============================ MODAL ============================ -->
+  <div id="modal" class="modal-backdrop hidden">
+    <div class="modal" id="modal-box"></div>
+  </div>
+
+  <!-- ============================ TOAST ============================ -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="seed.js"></script>
+  <script src="store.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Registra el service worker solo cuando la app se sirve por http(s)
+    // (file:// no permite service workers). Habilita el uso sin conexion.
+    if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>
