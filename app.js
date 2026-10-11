@@ -230,6 +230,7 @@ function handleLogout() {
   state.user = null;
   state.form = {};
   $("#app-view").classList.add("hidden");
+  $("#app-view").classList.remove("nav-open");
   $("#login-view").classList.remove("hidden");
   $("#login-pass").value = "";
 }
@@ -1787,9 +1788,19 @@ function bindEvents() {
     btnInstall.classList.add("hidden");
   });
 
+  // Menu lateral desplegable (solo movil): boton hamburguesa + fondo.
+  const openNav = (on) => {
+    const app = $("#app-view");
+    app.classList.toggle("nav-open", !!on);
+    const btn = $("#btn-menu");
+    if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
+  };
+  $("#btn-menu").addEventListener("click", () => openNav(!$("#app-view").classList.contains("nav-open")));
+  $("#nav-backdrop").addEventListener("click", () => openNav(false));
+
   $("#nav").addEventListener("click", (e) => {
     const b = e.target.closest("[data-nav]");
-    if (b) route(b.dataset.nav);
+    if (b) { route(b.dataset.nav); openNav(false); }
   });
 
   const content = $("#content");

@@ -45,18 +45,6 @@
       <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       <div id="login-error" class="alert alert-error hidden"></div>
 
-      <details class="login-help">
-        <summary>Usuarios de prueba</summary>
-        <ul>
-          <li><b>admin / admin123</b> — Administrador (todo)</li>
-          <li><b>operativo / demo123</b> — Operativo (carga viajes del cliente asignado)</li>
-          <li><b>validador / demo123</b> — Validador (aprueba/rechaza liquidados)</li>
-          <li><b>facturador / demo123</b> — Facturador (asigna factura)</li>
-          <li><b>gtransporte / demo123</b> — Gerente Transporte</li>
-          <li><b>gcomercial / demo123</b> — Gerente Comercial</li>
-        </ul>
-      </details>
-
       <div class="login-services" aria-hidden="true">
         <img src="assets/svc-almacenaje.png" alt="Servicio de Almacenaje" title="Servicio de Almacenaje" />
         <img src="assets/svc-transporte.png" alt="Servicio de Transporte" title="Servicio de Transporte" />
@@ -77,10 +65,14 @@
         <div class="sync-state" id="sync-state">Datos locales</div>
       </div>
     </aside>
+    <div class="nav-backdrop" id="nav-backdrop"></div>
 
     <div class="main">
       <header class="topbar">
-        <div>
+        <button id="btn-menu" class="btn-menu" aria-label="Abrir menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="topbar-title">
           <h2 id="view-title">Registro de Viajes</h2>
           <p id="view-sub" class="muted small"></p>
         </div>

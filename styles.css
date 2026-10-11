@@ -59,9 +59,6 @@ h1, h2, h3 { margin: 0; }
 .brand-full { display: block; height: 46px; width: auto; max-width: 240px; margin: 0 auto 14px; }
 .brand-mini { display: block; height: 26px; width: auto; }
 .brand h1 { font-size: 1.35rem; font-weight: 700; }
-.login-help { margin-top: 18px; font-size: .82rem; color: var(--muted); }
-.login-help summary { cursor: pointer; }
-.login-help ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
 .login-services {
   display: flex; align-items: center; justify-content: center;
   gap: 18px; margin-top: 22px; padding-top: 16px;
@@ -156,6 +153,10 @@ textarea { min-height: 72px; resize: vertical; }
 .user-box { display: flex; align-items: center; gap: 12px; }
 .topbar .btn-ghost { color: var(--primary); border-color: var(--line); background: #fff; }
 .topbar .btn-ghost:hover { background: var(--bg); color: var(--primary-d); }
+.topbar-title { min-width: 0; }
+/* Boton hamburguesa y fondo del menu: solo existen en movil */
+.btn-menu { display: none; }
+.nav-backdrop { display: none; }
 .user-chip { display: flex; align-items: center; gap: 9px; }
 .avatar {
   width: 38px; height: 38px; border-radius: 50%;
@@ -179,9 +180,6 @@ textarea { min-height: 72px; resize: vertical; }
 @media (max-width: 980px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 700px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-  .app { grid-template-columns: 1fr; }
-  .sidebar { flex-direction: row; align-items: center; overflow-x: auto; }
-  .sidebar-brand, .sidebar-foot { display: none; }
 }
 
 .field-group-title {
@@ -269,39 +267,43 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
 /* =====================================================================
  * MOVIL / PWA  (iPhone y Android)
  * ---------------------------------------------------------------------
- * En pantallas de telefono la barra lateral se convierte en una barra de
- * navegacion inferior (fija) y el resto se apila en una columna.
+ * En pantallas de telefono la barra lateral se oculta y se despliega
+ * como panel desde el boton hamburguesa del topbar; el resto se apila
+ * en una columna. En escritorio la barra lateral queda igual.
  * ===================================================================== */
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   :root { font-size: 16px; }
 
-  /* El area de la app deja espacio para la barra inferior + safe-area iOS */
-  .app {
-    display: block;
-    min-height: 100dvh;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom));
-  }
+  .app { display: block; min-height: 100dvh; }
 
-  /* ------------------- Navegacion inferior ------------------- */
+  /* ---------------- Menu lateral desplegable ----------------- */
+  /* En movil la barra lateral se oculta y se abre con el boton
+   * hamburguesa (3 lineas) del topbar; se cierra con el fondo oscuro
+   * o al elegir una seccion. */
   .sidebar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    flex-direction: row; align-items: stretch;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-    gap: 2px; overflow-x: auto; overflow-y: hidden;
-    background: linear-gradient(180deg, var(--navy-2), var(--navy));
-    border-top: 1px solid rgba(255,255,255,.12);
-    -webkit-overflow-scrolling: touch;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 70;
+    width: 272px; max-width: 82vw;
+    flex-direction: column; align-items: stretch;
+    padding: calc(16px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+    border-right: 1px solid rgba(255,255,255,.12);
+    transform: translateX(-104%);
+    transition: transform .25s ease;
+    box-shadow: 0 0 40px rgba(0,0,0,.45);
   }
-  .sidebar-brand, .sidebar-foot { display: none; }
-  .nav { flex-direction: row; gap: 4px; flex: 0 0 auto; }
-  .nav-item {
-    flex: 0 0 auto; flex-direction: column; gap: 3px;
-    padding: 7px 8px; font-size: .64rem; text-align: center;
-    min-width: 66px; max-width: 96px; border-radius: 10px; line-height: 1.15;
-    white-space: normal; overflow-wrap: anywhere;
+  .app.nav-open .sidebar { transform: translateX(0); }
+  .sidebar-brand { display: flex; }
+  .sidebar-foot { display: block; }
+  .nav { flex-direction: column; gap: 4px; }
+  .nav-item { flex: none; flex-direction: row; gap: 10px; text-align: left; padding: 12px; font-size: .95rem; width: 100%; }
+
+  .nav-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 65;
+    background: rgba(6, 20, 34, .55); opacity: 0; visibility: hidden;
+    transition: opacity .2s;
   }
-  .nav-item .nav-ico { font-size: 1.2rem; width: auto; }
-  .nav-item.active { box-shadow: none; }
+  .app.nav-open .nav-backdrop { opacity: 1; visibility: visible; }
 
   /* ------------------------- Topbar -------------------------- */
   .topbar {
@@ -309,7 +311,13 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
     padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
     gap: 10px;
   }
-  .topbar > div:first-child { flex: 1 1 auto; min-width: 0; }
+  .btn-menu {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    flex: 0 0 auto; width: 42px; height: 42px; padding: 0;
+    background: #fff; border: 1px solid var(--line); border-radius: 9px; cursor: pointer;
+  }
+  .btn-menu span { display: block; width: 20px; height: 2px; border-radius: 2px; background: var(--primary); }
+  .topbar-title { flex: 1 1 auto; min-width: 0; }
   .topbar h2 { font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #view-sub { display: none; }
   .user-box { gap: 8px; flex: 0 0 auto; }
@@ -348,9 +356,9 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
   .modal-actions { flex-direction: column-reverse; }
   .modal-actions .btn { width: 100%; }
 
-  /* Aviso flotante por encima de la barra inferior */
+  /* Aviso flotante */
   .toast {
-    left: 12px; right: 12px; bottom: calc(78px + env(safe-area-inset-bottom));
+    left: 12px; right: 12px; bottom: calc(22px + env(safe-area-inset-bottom));
     transform: none; text-align: center;
   }
 
