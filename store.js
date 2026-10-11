@@ -88,11 +88,24 @@ const Store = {
 
   /* -------------------------------------------------------------- */
   init() {
-    // Config de la nube (si esta guardada)
+    // Config de la nube: prioridad a lo guardado en este navegador;
+    // si no hay nada, usa los valores de config.js (window.APP_CONFIG).
+    const cfg = (typeof window !== "undefined" && window.APP_CONFIG) || {};
+    const preset = {
+      url: String(cfg.SUPABASE_URL || "").trim().replace(/\/+$/, ""),
+      key: String(cfg.SUPABASE_ANON_KEY || "").trim(),
+    };
+    this.cloud = { url: "", key: "" };
     try {
       const rawCloud = safeStorage.get(CLOUD_KEY);
-      if (rawCloud) { const c = JSON.parse(rawCloud); this.cloud = { url: (c.url || "").trim(), key: (c.key || "").trim() }; }
+      if (rawCloud) {
+        const c = JSON.parse(rawCloud);
+        this.cloud = { url: (c.url || "").trim(), key: (c.key || "").trim() };
+      }
     } catch (e) { this.cloud = { url: "", key: "" }; }
+    if (!this.cloud.url || !this.cloud.key) {
+      if (preset.url && preset.key) this.cloud = preset;
+    }
 
     let raw = null;
     try { raw = safeStorage.get(DB_KEY); } catch (e) { raw = null; }

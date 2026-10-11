@@ -8,11 +8,12 @@
  *   - Recursos externos (CDN de SheetJS): red primero, con copia en cache.
  * ===================================================================== */
 
-const CACHE = "registro-viajes-v2";
+const CACHE = "registro-viajes-v3";
 
 const ASSETS = [
   "./",
   "./index.html",
+  "./config.js",
   "./styles.css",
   "./seed.js",
   "./store.js",
@@ -73,6 +74,21 @@ self.addEventListener("fetch", (event) => {
   if (req.mode === "navigate") {
     event.respondWith(
       fetch(req).catch(() => caches.match("./index.html"))
+    );
+    return;
+  }
+
+  // config.js: RED PRIMERO (para que actualizar la configuracion se refleje
+  // enseguida en los dispositivos, sin esperar a otra version del cache).
+  if (url.pathname.endsWith("/config.js")) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(req))
     );
     return;
   }
