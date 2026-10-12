@@ -299,6 +299,7 @@ function syncStateText() {
 let autoSyncTimer = null;
 let autoSyncBusy = false;
 let lastSyncOK = 0;
+let warnedPush = false;
 
 function modalAbierto() { const m = $("#modal"); return !!(m && !m.classList.contains("hidden")); }
 function dbSignature() { try { return JSON.stringify(Store.db); } catch (e) { return ""; } }
@@ -313,6 +314,10 @@ async function backgroundSync() {
   const before = dbSignature();
   try {
     for (const t of Store.pendingTables()) { try { await Store.push(t); } catch (e) {} }
+    const stillPending = Store.pendingTables();
+    if (stillPending.length) {
+      if (!warnedPush) { warnedPush = true; toast("No se pudieron subir cambios (" + stillPending.join(", ") + "). Revisa la configuracion de la nube.", "err"); }
+    } else { warnedPush = false; }
     const r = await Store.cloudPullAll();
     if (r && r.ok === false && r.errors && r.errors.length) console.warn("Sync parcial:", r.errors);
     const changed = dbSignature() !== before;

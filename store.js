@@ -431,22 +431,36 @@ const Store = {
     return this.remove(table, keys) > 0;
   },
 
-  /* Descarga UNA tabla y reemplaza la local (conserva columnas privadas). */
+  /* Descarga UNA tabla y FUSIONA con la local por clave primaria.
+   * - Las filas de la nube sobrescriben a las locales con la misma clave.
+   * - Las filas locales que aun NO existen en la nube SE CONSERVAN (asi no se
+   *   pierde lo capturado sin conexion o si una subida fallo).
+   * - Se conservan las columnas privadas locales (p. ej. PASSWORD). */
   async cloudPullTable(table) {
     const rows = await this._cloudFetch(table + "?select=*&limit=100000", {});
     if (!Array.isArray(rows)) return this.db[table];
     const priv = PRIVATE_COLUMNS[table] || [];
-    // Conserva las columnas privadas locales (p. ej. PASSWORD para modo offline).
-    const localPriv = {};
-    if (priv.length) {
-      const keyOf = (r) => (PK[table] || []).map((k) => String(r[k])).join("|");
-      this.all(table).forEach((r) => { localPriv[keyOf(r)] = priv.reduce((a, k) => { a[k] = r[k]; return a; }, {}); });
+    const pkCols = PK[table] || [];
+    if (!pkCols.length) {
+      this.db[table] = rows.map((r) => this._coerce(table, r));
+      this.persist();
+      return this.db[table];
     }
-    this.db[table] = rows.map((r) => {
-      const row = this._coerce(table, r);
-      if (priv.length) Object.assign(row, localPriv[(PK[table] || []).map((k) => String(row[k])).join("|")] || {});
-      return row;
+    const keyOf = (r) => pkCols.map((k) => String(r[k])).join("|");
+    const merged = (this.db[table] || []).slice();
+    const index = new Map();
+    merged.forEach((r, i) => index.set(keyOf(r), i));
+    rows.forEach((raw) => {
+      const row = this._coerce(table, raw);
+      const k = keyOf(row);
+      const i = index.get(k);
+      if (i === undefined) { merged.push(row); index.set(k, merged.length - 1); return; }
+      const localRow = merged[i];
+      const next = Object.assign({}, localRow, row);
+      priv.forEach((pc) => { if (localRow[pc] !== undefined) next[pc] = localRow[pc]; });
+      merged[i] = next;
     });
+    this.db[table] = merged;
     this.persist();
     return this.db[table];
   },
