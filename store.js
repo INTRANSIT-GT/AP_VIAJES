@@ -384,26 +384,55 @@ const Store = {
     return res;
   },
 
-  /* Descarga todas las tablas y reemplaza las locales. */
-  async cloudPullAll() {
-    for (const table of TABLES) {
-      const rows = await this._cloudFetch(table + "?select=*&limit=100000", {});
-      if (!Array.isArray(rows)) continue;
-      const priv = PRIVATE_COLUMNS[table] || [];
-      // Conserva las columnas privadas locales (p. ej. PASSWORD para modo offline).
-      const localPriv = {};
-      if (priv.length) {
-        const keyOf = (r) => (PK[table] || []).map((k) => String(r[k])).join("|");
-        this.all(table).forEach((r) => { localPriv[keyOf(r)] = priv.reduce((a, k) => { a[k] = r[k]; return a; }, {}); });
-      }
-      this.db[table] = rows.map((r) => {
-        const row = this._coerce(table, r);
-        if (priv.length) Object.assign(row, localPriv[(PK[table] || []).map((k) => String(row[k])).join("|")] || {});
-        return row;
-      });
+  /* Descarga UNA tabla y reemplaza la local (conserva columnas privadas). */
+  async cloudPullTable(table) {
+    const rows = await this._cloudFetch(table + "?select=*&limit=100000", {});
+    if (!Array.isArray(rows)) return this.db[table];
+    const priv = PRIVATE_COLUMNS[table] || [];
+    // Conserva las columnas privadas locales (p. ej. PASSWORD para modo offline).
+    const localPriv = {};
+    if (priv.length) {
+      const keyOf = (r) => (PK[table] || []).map((k) => String(r[k])).join("|");
+      this.all(table).forEach((r) => { localPriv[keyOf(r)] = priv.reduce((a, k) => { a[k] = r[k]; return a; }, {}); });
     }
+    this.db[table] = rows.map((r) => {
+      const row = this._coerce(table, r);
+      if (priv.length) Object.assign(row, localPriv[(PK[table] || []).map((k) => String(row[k])).join("|")] || {});
+      return row;
+    });
     this.persist();
-    return this.db;
+    return this.db[table];
+  },
+
+  /* Descarga todas las tablas. Si una falla, sigue con las demas para que
+   * un problema en una sola tabla no deje sin perfil al usuario. */
+  async cloudPullAll() {
+    const errors = [];
+    for (const table of TABLES) {
+      try { await this.cloudPullTable(table); }
+      catch (e) { errors.push(table + ": " + e.message); }
+    }
+    return { ok: errors.length === 0, errors };
+  },
+
+  /* Trae el perfil de UN usuario por su correo (campo USUARIO) y lo fusiona
+   * con lo local. Es la via principal de login: no depende de las demas tablas. */
+  async fetchPerfil(username) {
+    const u = String(username || "").trim();
+    let rows = [];
+    try {
+      rows = await this._cloudFetch("usuarios?select=*&USUARIO=ilike." + encodeURIComponent(u), {});
+    } catch (e) {
+      rows = await this._cloudFetch("usuarios?select=*&limit=100000", {});
+      if (Array.isArray(rows)) rows = rows.filter((r) => String(r.USUARIO).toLowerCase() === u.toLowerCase());
+    }
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const row = this._coerce("usuarios", rows[0]);
+    const i = this.all("usuarios").findIndex((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
+    if (i >= 0) this.db.usuarios[i] = Object.assign({}, this.db.usuarios[i], row);
+    else this.db.usuarios.push(row);
+    this.persist();
+    return this.db.usuarios.find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase()) || null;
   },
 
   /* ---- Empuje automatico al guardar (usa nube o el endpoint legacy) ---- */

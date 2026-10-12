@@ -219,11 +219,17 @@ async function handleLogin(e) {
 
     let user = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
     if (!user && authOk) {
-      // Dispositivo nuevo: trae el perfil (y demas datos) desde la nube.
-      try { await Store.cloudPullAll(); } catch (e) {}
-      user = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
+      // Trae el perfil (y los permisos) desde la nube, de forma directa.
+      let pullErr = "";
+      try { user = await Store.fetchPerfil(u); } catch (e) { pullErr = e.message; }
+      try { await Store.cloudPullTable("permisos"); } catch (e) { if (!pullErr) pullErr = e.message; }
     }
-    if (!user) { showErr("Tu cuenta no tiene perfil asignado en la app. Contacta al administrador."); return; }
+    if (!user) {
+      showErr("Tu cuenta no tiene perfil asignado en la app." +
+        (pullErr ? " Detalle de la nube: " + pullErr
+                 : " Revisa en Supabase (tabla usuarios) que exista una fila con tu correo en USUARIO y ACTIVO = Si."));
+      return;
+    }
     if (!authOk && user.PASSWORD !== p) { showErr("Usuario o contrasena incorrectos."); return; }
     if (user.ACTIVO !== "Si") { showErr("El usuario esta inactivo. Contacta al administrador."); return; }
 
@@ -243,7 +249,7 @@ function restoreCloudSession() {
     .then(async () => {
       const name = Store.session.username;
       let u = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === String(name).toLowerCase());
-      if (!u) { try { await Store.cloudPullAll(); } catch (e) {} u = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === String(name).toLowerCase()); }
+      if (!u) { try { u = await Store.fetchPerfil(name); } catch (e) {} }
       if (!u || u.ACTIVO !== "Si") throw new Error("sin perfil");
       state.user = u;
       enterApp();
