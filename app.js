@@ -1158,6 +1158,8 @@ function viewFlota() {
   const unidades = Store.all("unidades");
   const mants = Store.all("mantenimientos");
   const gastos = Store.all("gastos");
+  const cliById = {};
+  Store.all("clientes").forEach((c) => { cliById[c.ID_CLIENTE] = c.CLIENTE; });
 
   const totalMant = mants.reduce((a, m) => a + (Number(m.TOTAL) || 0), 0);
   const totalGastos = gastos.reduce((a, g) => a + (Number(g.MONTO) || 0), 0);
@@ -1175,13 +1177,13 @@ function viewFlota() {
   if (tab === "unidades") {
     const rows = unidades.slice().sort((a, b) => String(a.UNIDAD).localeCompare(String(b.UNIDAD)));
     body = `<div class="table-wrap"><table>
-      <thead><tr><th>Unidad</th><th>Nombre</th><th>VIN</th><th>Marca / Modelo</th><th>Año</th><th>Tipo</th><th>Status</th><th>Medidor</th><th>Grupo</th></tr></thead>
+      <thead><tr><th>Unidad</th><th>Tipo</th><th>Status</th><th>Cliente</th><th>Marca / Modelo</th><th>Año</th><th>Medidor</th><th>Color</th></tr></thead>
       <tbody>${rows.length ? rows.map((r) => `<tr>
-        <td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.NOMBRE)}</td><td>${esc(r.VIN)}</td>
+        <td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.TIPO_UNIDAD)}</td><td>${esc(r.STATUS)}</td>
+        <td>${esc(cliById[r.ID_CLIENTE] || r.GRUPO || "")}</td>
         <td>${esc([r.MARCA, r.MODELO].filter(Boolean).join(" "))}</td><td>${esc(r.ANIO)}</td>
-        <td>${esc(r.TIPO_UNIDAD)}</td><td>${esc(r.FLEETIO_STATUS)}</td>
-        <td>${esc(r.MEDIDOR)}${r.MEDIDOR_UNIDAD ? " " + esc(r.MEDIDOR_UNIDAD) : ""}</td><td>${esc(r.GRUPO)}</td>
-      </tr>`).join("") : `<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">Sin unidades.${puedeSync ? " Usa “Sincronizar Flota”." : " Pide a un administrador que sincronice."}</td></tr>`}</tbody>
+        <td>${esc(r.MEDIDOR)}${r.MEDIDOR_UNIDAD ? " " + esc(r.MEDIDOR_UNIDAD) : ""}</td><td>${esc(r.COLOR)}</td>
+      </tr>`).join("") : `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Sin unidades.${puedeSync ? " Usa “Sincronizar Flota”." : " Pide a un administrador que sincronice."}</td></tr>`}</tbody>
     </table></div>`;
   } else if (tab === "mantenimientos") {
     const rows = mants.slice().sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)));
