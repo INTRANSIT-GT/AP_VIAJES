@@ -793,8 +793,12 @@ function saveViaje() {
       if (state.user.ROL !== "admin") row.STATUS = STATUS_LIQUIDADO;
       if (row.STATUS !== STATUS_RECHAZADO) row.COMENTARIO_VALIDACION = "";
     }
-    // Si el viaje no tenia dueno (antiguo), queda asignado a quien lo guarda.
-    if (prev && !String(prev.USUARIO_EDITOR || "").trim()) row.USUARIO_EDITOR = state.user.USUARIO;
+    // Si el viaje no tenia dueno (antiguo) y lo guarda un operativo, queda
+    // asignado a el. El admin NUNCA se apropia: deja el viaje sin dueno para
+    // no bloquearlo al operativo.
+    if (prev && !String(prev.USUARIO_EDITOR || "").trim() && state.user.ROL !== "admin") {
+      row.USUARIO_EDITOR = state.user.USUARIO;
+    }
     Store.update("viajes", (r) => r.ID_VIAJE === state.editId, row);
     toast(`Viaje ${state.editId} actualizado`, "ok");
   } else {
