@@ -152,10 +152,13 @@ function statusOptionsForForm() {
 
 /* Usuario (correo) del que tiene la sesion. */
 function miUsuario() { return String((state.user && state.user.USUARIO) || "").toLowerCase().trim(); }
-/* ¿El viaje lo registro este usuario? (columna USUARIO_EDITOR) */
+/* ¿El viaje lo registro este usuario? (columna USUARIO_EDITOR)
+ * Si el viaje es antiguo y no tiene dueno registrado, se considera libre
+ * (al guardarlo queda asignado a quien lo edite). */
 function esDuenoViaje(v) {
-  const me = miUsuario();
-  return !!me && !!v && String(v.USUARIO_EDITOR || "").toLowerCase().trim() === me;
+  const owner = String((v && v.USUARIO_EDITOR) || "").toLowerCase().trim();
+  if (!owner) return true;
+  return !!miUsuario() && owner === miUsuario();
 }
 
 /* Regla de edicion de un viaje:
@@ -790,6 +793,8 @@ function saveViaje() {
       if (state.user.ROL !== "admin") row.STATUS = STATUS_LIQUIDADO;
       if (row.STATUS !== STATUS_RECHAZADO) row.COMENTARIO_VALIDACION = "";
     }
+    // Si el viaje no tenia dueno (antiguo), queda asignado a quien lo guarda.
+    if (prev && !String(prev.USUARIO_EDITOR || "").trim()) row.USUARIO_EDITOR = state.user.USUARIO;
     Store.update("viajes", (r) => r.ID_VIAJE === state.editId, row);
     toast(`Viaje ${state.editId} actualizado`, "ok");
   } else {
