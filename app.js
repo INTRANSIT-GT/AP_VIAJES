@@ -180,8 +180,8 @@ function closeModal() {
 function addBitacora(accion) {
   Store.insert("bitacora", {
     ID_BITACORA: Store.nextId("bitacora", "ID_BITACORA", "B-", 5),
-    ID_USUARIO: state.user.ID_USUARIO,
-    USUARIO: state.user.USUARIO,
+    ID_USUARIO: state.user ? state.user.ID_USUARIO : "",
+    USUARIO: state.user ? state.user.USUARIO : "anonimo",
     FECHA: nowStr(),
     ACCION: accion,
     EQUIPO: `${navigator.platform || ""} · ${navigator.userAgent.slice(0, 60)}`,
@@ -189,18 +189,66 @@ function addBitacora(accion) {
 }
 
 /* ============================= LOGIN ============================== */
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
   const u = $("#login-user").value.trim();
   const p = $("#login-pass").value;
   const err = $("#login-error");
-  const user = Store.all("usuarios").find((x) => x.USUARIO === u && x.PASSWORD === p);
-  if (!user) { err.textContent = "Usuario o contrasena incorrectos."; err.classList.remove("hidden"); return; }
-  if (user.ACTIVO !== "Si") { err.textContent = "El usuario esta inactivo. Contacta al administrador."; err.classList.remove("hidden"); return; }
-  err.classList.add("hidden");
-  state.user = user;
-  addBitacora("Login");
-  enterApp();
+  const btn = $("#login-form").querySelector('button[type="submit"]');
+  const showErr = (m) => { err.textContent = m; err.classList.remove("hidden"); };
+
+  if (!u || !p) { showErr("Escribe usuario y contrasena."); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Entrando..."; }
+
+  try {
+    // Con Supabase Auth activo: valida contra la sesion (email interno).
+    let authOk = false;
+    if (Store.authEnabled()) {
+      try {
+        await Store.authSignIn(u, p);
+        authOk = true;
+      } catch (e2) {
+        const offline = /Failed to fetch|NetworkError|load failed|Network request failed/i.test(e2.message || "");
+        if (!offline) {
+          showErr("Usuario o contrasena incorrectos, o la cuenta no existe en Supabase (Authentication → Users).");
+          return;
+        }
+        // Sin red: se permite entrar con la validacion local (modo offline).
+      }
+    }
+
+    let user = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
+    if (!user && authOk) {
+      // Dispositivo nuevo: trae el perfil (y demas datos) desde la nube.
+      try { await Store.cloudPullAll(); } catch (e) {}
+      user = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
+    }
+    if (!user) { showErr("Tu cuenta no tiene perfil asignado en la app. Contacta al administrador."); return; }
+    if (!authOk && user.PASSWORD !== p) { showErr("Usuario o contrasena incorrectos."); return; }
+    if (user.ACTIVO !== "Si") { showErr("El usuario esta inactivo. Contacta al administrador."); return; }
+
+    err.classList.add("hidden");
+    state.user = user;
+    addBitacora("Login");
+    enterApp();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Entrar"; }
+  }
+}
+
+/* Restaura la sesion de Supabase Auth guardada en este dispositivo. */
+function restoreCloudSession() {
+  if (!Store.authEnabled() || !Store.session) return;
+  Store.ensureToken()
+    .then(async () => {
+      const name = Store.session.username;
+      let u = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === String(name).toLowerCase());
+      if (!u) { try { await Store.cloudPullAll(); } catch (e) {} u = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === String(name).toLowerCase()); }
+      if (!u || u.ACTIVO !== "Si") throw new Error("sin perfil");
+      state.user = u;
+      enterApp();
+    })
+    .catch(() => Store.clearSession());
 }
 
 function syncStateText() {
@@ -227,6 +275,7 @@ function enterApp() {
 
 function handleLogout() {
   addBitacora("Logout");
+  if (Store.authEnabled() && Store.hasSession && Store.hasSession()) Store.authSignOut().catch(() => {});
   state.user = null;
   state.form = {};
   $("#app-view").classList.add("hidden");
@@ -998,7 +1047,9 @@ function openFacturarModal(id) {
 /* ---------------------- Exportacion CSV de viajes ----------------- */
 function toCSV(rows, columns) {
   const q = (v) => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // Evita inyeccion de formulas en Excel/Sheets (CWE-1236).
+    if (/^[=+@\t\r]/.test(s) || (s.charAt(0) === "-" && isNaN(Number(s)))) s = "'" + s;
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   return [columns.join(","), ...rows.map((r) => columns.map((c) => q(r[c])).join(","))].join("\r\n");
@@ -1117,12 +1168,17 @@ function viewAdmin() {
   renderCatalog();
 }
 
+function catalogFields(cat) {
+  // Con Supabase Auth activo, la contrasena la maneja Auth: se oculta del panel.
+  return cat.fields.filter((f) => !(f.key === "PASSWORD" && Store.authEnabled && Store.authEnabled()));
+}
+
 function renderCatalog() {
   const key = state.adminTab;
   const cat = CATALOGS[key];
   const rows = Store.all(cat.table);
   const host = $("#catalog-host");
-  const cols = cat.fields;
+  const cols = catalogFields(cat);
   const editable = !!canEditTable(key) && !cat.readonly;
 
   host.innerHTML = `
@@ -1166,6 +1222,7 @@ function catalogFieldHTML(f, row) {
 function openCatalogForm(key, idx) {
   if (!canEditTable(key)) { toast("Tu perfil no puede modificar esta tabla.", "err"); return; }
   const cat = CATALOGS[key];
+  const fields = catalogFields(cat);
   const row = idx == null ? {} : Store.all(cat.table)[idx];
   if (idx == null) {
     if (cat.fields.some((f) => f.key === "FECHA_CREACION")) row.FECHA_CREACION = today();
@@ -1173,7 +1230,7 @@ function openCatalogForm(key, idx) {
   }
   openModal(`
     <h3>${idx == null ? "Nuevo" : "Editar"} - ${esc(cat.label)}</h3>
-    <div class="grid grid-2">${cat.fields.map((f) => catalogFieldHTML(f, row)).join("")}</div>
+    <div class="grid grid-2">${fields.map((f) => catalogFieldHTML(f, row)).join("")}</div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" id="btn-cat-save">Guardar</button>
@@ -1181,11 +1238,13 @@ function openCatalogForm(key, idx) {
 
   $("#btn-cat-save").onclick = () => {
     const obj = {};
-    cat.fields.forEach((f) => {
+    fields.forEach((f) => {
       const el = $(`[data-cfield="${f.key}"]`);
       obj[f.key] = f.type === "number" && el.value !== "" ? Number(el.value) : el.value.trim();
     });
-    for (const f of cat.fields) {
+    // Conserva las columnas privadas (p. ej. PASSWORD en modo offline).
+    ((typeof PRIVATE_COLUMNS !== "undefined" && PRIVATE_COLUMNS[cat.table]) || []).forEach((k) => { if (row[k] != null) obj[k] = row[k]; });
+    for (const f of fields) {
       if (f.required && !obj[f.key]) { toast(`El campo "${f.label}" es obligatorio`, "err"); return; }
     }
     const matchRow = (r, o) => cat.pk.every((k) => String(r[k]) === String(o[k]));
@@ -1325,7 +1384,7 @@ function barRow(label, value, max, rightText, iconHTML) {
   return `<div class="bar-row">
     <div class="bar-label">${iconHTML ? iconHTML + " " : ""}${esc(label)}</div>
     <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-    <div class="bar-value">${rightText != null ? rightText : value}</div>
+    <div class="bar-value">${esc(rightText != null ? rightText : value)}</div>
   </div>`;
 }
 function groupCount(rows, keyFn) {
@@ -1493,7 +1552,8 @@ function columnsOfTable(table) {
   const rows = (SEED[table] && SEED[table].length) ? SEED[table] : Store.all(table);
   const cols = [];
   rows.forEach((r) => Object.keys(r).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
-  return cols;
+  const priv = (typeof PRIVATE_COLUMNS !== "undefined" && PRIVATE_COLUMNS[table]) || [];
+  return cols.filter((c) => !priv.includes(c));
 }
 
 function inferSQLType(rows, col) {
@@ -1887,6 +1947,8 @@ document.addEventListener("DOMContentLoaded", () => {
   try { Store.init(); } catch (e) { console.error("Store.init", e); }
   try { ensurePermisos(); } catch (e) { console.error("ensurePermisos", e); }
   bindEvents();
+  // Si ya hay una sesion de Supabase Auth en este dispositivo, entra directo.
+  try { restoreCloudSession(); } catch (e) { console.error("restoreCloudSession", e); }
   // Diagnostico visible en caso de que no haya usuarios cargados
   if (!Store.all("usuarios").length) {
     const err = $("#login-error");

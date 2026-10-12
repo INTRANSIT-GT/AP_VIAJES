@@ -8,7 +8,7 @@
  *   - Recursos externos (CDN de SheetJS): red primero, con copia en cache.
  * ===================================================================== */
 
-const CACHE = "registro-viajes-v3";
+const CACHE = "registro-viajes-v6";
 
 const ASSETS = [
   "./",
