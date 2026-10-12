@@ -292,6 +292,50 @@ function syncStateText() {
   if (el) el.textContent = Store.cloudEnabled() ? "Nube activa (datos compartidos)" : (Store.syncUrl ? "Sync activo (Excel nube)" : "Datos locales");
 }
 
+/* ================== SINCRONIZACION AUTOMATICA ==================== */
+let autoSyncTimer = null;
+let autoSyncBusy = false;
+let lastSyncOK = 0;
+
+function modalAbierto() { const m = $("#modal"); return !!(m && !m.classList.contains("hidden")); }
+function dbSignature() { try { return JSON.stringify(Store.db); } catch (e) { return ""; } }
+
+/* Sincroniza en segundo plano sin que el usuario tenga que picar Sync:
+ * 1) sube los cambios locales que no hayan llegado a la nube (protege lo
+ *    capturado sin conexion), 2) baja lo nuevo de otros dispositivos.
+ * No interrumpe si el usuario esta capturando o tiene un cuadro abierto. */
+async function backgroundSync() {
+  if (!Store.cloudEnabled() || !state.user || autoSyncBusy) return;
+  autoSyncBusy = true;
+  const before = dbSignature();
+  try {
+    for (const t of Store.pendingTables()) { try { await Store.push(t); } catch (e) {} }
+    const r = await Store.cloudPullAll();
+    if (r && r.ok === false && r.errors && r.errors.length) console.warn("Sync parcial:", r.errors);
+    const changed = dbSignature() !== before;
+    const idle = !state.editId && !modalAbierto() && !$("#app-view").classList.contains("hidden");
+    if (changed && idle) renderCurrent();
+    if (!r || r.ok !== false) lastSyncOK = Date.now();
+  } catch (e) {
+    console.warn("Auto-sync:", e.message);
+  } finally {
+    autoSyncBusy = false;
+    syncStamp();
+  }
+}
+
+function syncStamp() {
+  const b = $("#btn-sync");
+  if (b) b.title = lastSyncOK ? "Ultima sincronizacion: " + new Date(lastSyncOK).toLocaleTimeString() : "Sincronizar con la nube";
+}
+
+function startAutoSync() {
+  stopAutoSync();
+  if (!Store.cloudEnabled()) return;
+  autoSyncTimer = setInterval(backgroundSync, 45000);
+}
+function stopAutoSync() { if (autoSyncTimer) { clearInterval(autoSyncTimer); autoSyncTimer = null; } }
+
 function enterApp() {
   $("#login-view").classList.add("hidden");
   $("#app-view").classList.remove("hidden");
@@ -304,13 +348,15 @@ function enterApp() {
   // Con backend en la nube: sincroniza en segundo plano al entrar.
   if (Store.cloudEnabled()) {
     Store.cloudPushAll().then(() => Store.cloudPullAll())
-      .then(() => { syncStateText(); renderCurrent(); toast("Datos sincronizados", "ok"); })
+      .then(() => { lastSyncOK = Date.now(); syncStateText(); syncStamp(); renderCurrent(); toast("Datos sincronizados", "ok"); })
       .catch((e) => { syncStateText(); toast("Sin conexion a la nube: " + e.message, "err"); });
+    startAutoSync();
   }
 }
 
 function handleLogout() {
   addBitacora("Logout");
+  stopAutoSync();
   if (Store.authEnabled() && Store.hasSession && Store.hasSession()) Store.authSignOut().catch(() => {});
   state.user = null;
   state.form = {};
@@ -2176,6 +2222,9 @@ document.addEventListener("DOMContentLoaded", () => {
   try { ensurePermisos(); } catch (e) { console.error("ensurePermisos", e); }
   window.addEventListener("error", (ev) => showFatal(ev.message || (ev.error && ev.error.message) || "desconocido"));
   window.addEventListener("unhandledrejection", (ev) => showFatal((ev.reason && ev.reason.message) || String(ev.reason || "promesa rechazada")));
+  // Refresco oportunista: al volver a la pestana/venana, sincroniza solo.
+  window.addEventListener("focus", () => { if (state.user) backgroundSync(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && state.user) backgroundSync(); });
   try { bindEvents(); } catch (e) { showFatal("No se pudieron enlazar los eventos: " + e.message); }
   // Si ya hay una sesion de Supabase Auth en este dispositivo, entra directo.
   try { restoreCloudSession(); } catch (e) { console.error("restoreCloudSession", e); }

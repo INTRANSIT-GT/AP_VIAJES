@@ -100,6 +100,8 @@ const Store = {
   cloud: { url: "", key: "" },
   session: null,
   authDomain: AUTH_DOMAIN_DEFAULT,
+  /* Tablas con cambios locales que aun no se confirman en la nube. */
+  _dirty: {},
 
   /* -------------------------------------------------------------- */
   init() {
@@ -161,6 +163,7 @@ const Store = {
   insert(table, row) {
     this.db[table].push(row);
     this.persist();
+    this._dirty[table] = true;
     this.push(table).catch(() => {});
     return row;
   },
@@ -171,16 +174,19 @@ const Store = {
     this.db[table].forEach((row, i) => {
       if (predicate(row, i)) { Object.assign(row, patch); n++; }
     });
-    if (n) { this.persist(); this.push(table).catch(() => {}); }
+    if (n) { this.persist(); this._dirty[table] = true; this.push(table).catch(() => {}); }
     return n;
   },
 
   remove(table, predicate) {
     const before = this.db[table].length;
     this.db[table] = this.db[table].filter((row, i) => !predicate(row, i));
-    if (this.db[table].length !== before) { this.persist(); this.push(table).catch(() => {}); }
+    if (this.db[table].length !== before) { this.persist(); this._dirty[table] = true; this.push(table).catch(() => {}); }
     return before - this.db[table].length;
   },
+
+  /* Tablas con cambios locales pendientes de subir. */
+  pendingTables() { return TABLES.filter((t) => this._dirty && this._dirty[t] === true); },
 
   /* Genera el siguiente folio de una tabla: prefijo + numero consecutivo. */
   nextId(table, idField, prefix, pad = 5) {
@@ -497,7 +503,11 @@ const Store = {
   /* ---- Empuje automatico al guardar (usa nube o el endpoint legacy) ---- */
   async push(table) {
     if (this.cloudEnabled()) {
-      try { return await this.cloudPushTable(table); } catch (e) { return { ok: false, error: e.message }; }
+      try {
+        const r = await this.cloudPushTable(table);
+        if (r && r.ok !== false) this._dirty[table] = false;
+        return r;
+      } catch (e) { return { ok: false, error: e.message }; }
     }
     if (!this.syncUrl) return { ok: false, skipped: true };
     const res = await fetch(this.syncUrl, {
@@ -505,7 +515,9 @@ const Store = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "replace", table, payload: this.all(table) }),
     });
-    return res.json();
+    const out = await res.json();
+    this._dirty[table] = false;
+    return out;
   },
 
   async pullAll() {
