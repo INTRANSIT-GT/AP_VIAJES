@@ -1088,6 +1088,7 @@ const CATALOGS = {
     { key: "ID_CLIENTE", label: "ID Cliente", type: "text", pk: true, required: true },
     { key: "CLIENTE", label: "Cliente", type: "text", required: true },
     { key: "CLIENTE_PADRE", label: "Cliente Padre", type: "text" },
+    { key: "GRUPO_FLEETIO", label: "Grupo en Fleetio (sigla)", type: "text" },
     { key: "SERVICIO", label: "Servicio", type: "text" },
     { key: "NOMBRE_USUARIO_PRINCIPAL", label: "Usuario Principal", type: "text" },
     { key: "CORREO", label: "Correo", type: "text" },
@@ -1847,7 +1848,47 @@ function copyText(text) {
 }
 
 function openCloudModal() {
+  const esAdmin = !!(state.user && String(state.user.ROL).toLowerCase() === "admin");
   const hasCloud = Store.cloudEnabled();
+
+  // Usuarios que NO son admin: solo los botones de sincronizacion, sin la
+  // configuracion (URL, llave, esquema) ni los pasos tecnicos.
+  if (!esAdmin) {
+    openModal(`
+      <h3>Nube (datos compartidos)</h3>
+      <p class="muted small">${hasCloud
+        ? "Usa estos botones para traer o enviar los datos compartidos de este dispositivo."
+        : "La nube no esta configurada en este dispositivo. Pide a un administrador que la active."}</p>
+      <div class="toolbar">
+        <button class="btn" id="btn-cloud-sync" ${hasCloud ? "" : "disabled"}>Sincronizar</button>
+        <button class="btn" id="btn-cloud-push" ${hasCloud ? "" : "disabled"}>Enviar mis cambios</button>
+        <button class="btn" id="btn-cloud-pull" ${hasCloud ? "" : "disabled"}>Bajar datos</button>
+      </div>
+      <div id="cloud-msg" class="hidden"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btn-cloud-close">Cerrar</button>
+      </div>`);
+
+    const msg = (text, cls) => { const m = $("#cloud-msg"); m.className = "alert " + (cls || "alert-info") + " small"; m.textContent = text; };
+    $("#btn-cloud-close").onclick = () => closeModal();
+    $("#btn-cloud-sync").onclick = async () => {
+      msg("Sincronizando...");
+      try { await Store.cloudPushAll(); await Store.cloudPullAll(); msg("Datos sincronizados.", "alert-success"); syncStateText(); renderCurrent(); toast("Datos sincronizados", "ok"); }
+      catch (e) { msg("No se pudo sincronizar: " + e.message, "alert-error"); }
+    };
+    $("#btn-cloud-push").onclick = async () => {
+      msg("Enviando...");
+      try { const r = await Store.cloudPushAll(); const total = r.reduce((a, x) => a + (x.count || 0), 0); msg(`Enviados ${total} registros.`, "alert-success"); syncStateText(); }
+      catch (e) { msg("No se pudo enviar: " + e.message, "alert-error"); }
+    };
+    $("#btn-cloud-pull").onclick = async () => {
+      msg("Bajando...");
+      try { await Store.cloudPullAll(); msg("Datos descargados.", "alert-success"); syncStateText(); renderCurrent(); }
+      catch (e) { msg("No se pudo bajar: " + e.message, "alert-error"); }
+    };
+    return;
+  }
+
   openModal(`
     <h3>Nube (datos compartidos)</h3>
     <p class="muted small">Conecta un proyecto de Supabase para que todos los telefonos y PCs vean los mismos datos. Sin configurarlo, la app funciona solo con los datos de este dispositivo.</p>
@@ -1878,7 +1919,10 @@ function openCloudModal() {
     </div>`);
 
   const msg = (text, cls) => { const m = $("#cloud-msg"); m.className = "alert " + (cls || "alert-info") + " small"; m.textContent = text; };
-  const saveConfig = () => Store.setCloud($("#cloud-url").value, $("#cloud-key").value);
+  const saveConfig = () => {
+    const u = $("#cloud-url"), k = $("#cloud-key");
+    return (u && k) ? Store.setCloud(u.value, k.value) : { url: Store.cloud.url, key: Store.cloud.key };
+  };
 
   $("#btn-cloud-close").onclick = () => closeModal();
   $("#btn-cloud-save").onclick = () => {
