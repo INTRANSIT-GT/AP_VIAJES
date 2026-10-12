@@ -171,12 +171,15 @@ function canEditViaje(v) {
   return esDuenoViaje(v);
 }
 
-/* Borrado: admin o el operativo dueno del viaje con permiso de eliminar. */
+/* Borrado LOGICO: no borra el viaje, solo lo marca y registra quien lo
+ * elimino (ELIMINADO_POR). Disponible para admin y gerencia con permiso. */
 function puedeEliminarViaje(v) {
   if (!v || v.ELIMINADO === "Si") return false;
-  if (state.user.ROL === "admin") return true;
-  return can("viajes_eliminar") && esDuenoViaje(v);
+  return can("viajes_eliminar");
 }
+
+/* Borrado PERMANENTE (desaparece para todos, local y nube): solo el admin. */
+function puedeEliminarPermanente() { return !!state.user && state.user.ROL === "admin"; }
 
 /* ------------------------------- Toast ---------------------------- */
 let toastTimer;
@@ -223,6 +226,7 @@ async function handleLogin(e) {
   if (!u || !p) { showErr("Escribe usuario y contrasena."); return; }
   if (btn) { btn.disabled = true; btn.textContent = "Entrando..."; }
 
+  let pullErr = "";
   try {
     // Con Supabase Auth activo: valida contra la sesion (email interno).
     let authOk = false;
@@ -231,19 +235,18 @@ async function handleLogin(e) {
         await Store.authSignIn(u, p);
         authOk = true;
       } catch (e2) {
-        const offline = /Failed to fetch|NetworkError|load failed|Network request failed/i.test(e2.message || "");
+        const offline = /Failed to fetch|NetworkError|load failed|Network request failed|timeout|tiempo de espera|Error de red/i.test(e2.message || "");
         if (!offline) {
           showErr("Usuario o contrasena incorrectos, o la cuenta no existe en Supabase (Authentication → Users).");
           return;
         }
-        // Sin red: se permite entrar con la validacion local (modo offline).
+        showErr("Sin conexion a la nube; validando con los datos de este dispositivo...");
       }
     }
 
     let user = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
     if (!user && authOk) {
       // Trae el perfil (y los permisos) desde la nube, de forma directa.
-      let pullErr = "";
       try { user = await Store.fetchPerfil(u); } catch (e) { pullErr = e.message; }
       try { await Store.cloudPullTable("permisos"); } catch (e) { if (!pullErr) pullErr = e.message; }
     }
@@ -253,13 +256,17 @@ async function handleLogin(e) {
                  : " Revisa en Supabase (tabla usuarios) que exista una fila con tu correo en USUARIO y ACTIVO = Si."));
       return;
     }
-    if (!authOk && user.PASSWORD !== p) { showErr("Usuario o contrasena incorrectos."); return; }
+    // En modo nube la contrasena la valida Supabase Auth; solo se compara local
+    // si la columna PASSWORD sigue existiendo (modo offline antiguo).
+    if (!authOk && user.PASSWORD && user.PASSWORD !== p) { showErr("Usuario o contrasena incorrectos."); return; }
     if (user.ACTIVO !== "Si") { showErr("El usuario esta inactivo. Contacta al administrador."); return; }
 
     err.classList.add("hidden");
     state.user = user;
     addBitacora("Login");
     enterApp();
+  } catch (e) {
+    showErr("Error al iniciar sesion: " + ((e && e.message) ? e.message : e));
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = "Entrar"; }
   }
@@ -869,6 +876,8 @@ function viewConsultar() {
                   <button class="btn btn-sm" data-ver="${esc(r.ID_VIAJE)}">Ver</button>
                   ${canEditViaje(r) ? `<button class="btn btn-sm btn-primary" data-edit="${esc(r.ID_VIAJE)}">Editar</button>` : ""}
                   ${puedeEliminarViaje(r) ? `<button class="btn btn-sm btn-danger" data-del-viaje="${esc(r.ID_VIAJE)}">Eliminar</button>` : ""}
+                  ${(can("viajes_eliminar") && r.ELIMINADO === "Si") ? `<button class="btn btn-sm" data-restaurar="${esc(r.ID_VIAJE)}">Reactivar</button>` : ""}
+                  ${puedeEliminarPermanente() ? `<button class="btn btn-sm btn-danger" data-delperm="${esc(r.ID_VIAJE)}">Elim. permanente</button>` : ""}
                 </td>
               </tr>`).join("") : `<tr><td colspan="14" class="muted" style="text-align:center;padding:24px">Sin viajes para los filtros seleccionados.</td></tr>`}
           </tbody>
@@ -880,12 +889,36 @@ function viewConsultar() {
 function eliminarViaje(id) {
   const v = Store.all("viajes").find((x) => x.ID_VIAJE === id);
   if (!v) return;
-  if (!can("viajes_eliminar")) { toast("Tu perfil no puede eliminar viajes.", "err"); return; }
-  if (!puedeEliminarViaje(v)) { toast("Solo puedes eliminar los viajes que tu registraste.", "err"); return; }
-  if (!confirm(`¿Eliminar el viaje ${id}? Se conserva un registro de auditoria (no se borra fisicamente).`)) return;
+  if (!puedeEliminarViaje(v)) { toast("Tu perfil no puede eliminar viajes.", "err"); return; }
+  if (!confirm(`¿Eliminar el viaje ${id}? No se borra: queda marcado como eliminado y se registra que lo elimino "${state.user.USUARIO}". Un administrador puede restaurarlo o borrarlo definitivamente.`)) return;
   Store.update("viajes", (r) => r.ID_VIAJE === id, { ELIMINADO: "Si", ELIMINADO_POR: state.user.USUARIO, FECHA_ELIMINACION: nowStr() });
   addBitacora("Eliminar viaje " + id);
   toast(`Viaje ${id} eliminado (registro conservado)`, "ok");
+  renderCurrent();
+}
+
+/* Reactiva un viaje marcado como eliminado (borrado logico reversible). */
+function restaurarViaje(id) {
+  const v = Store.all("viajes").find((x) => x.ID_VIAJE === id);
+  if (!v) return;
+  if (!can("viajes_eliminar")) { toast("Tu perfil no puede reactivar viajes.", "err"); return; }
+  Store.update("viajes", (r) => r.ID_VIAJE === id, { ELIMINADO: "No", ELIMINADO_POR: "", FECHA_ELIMINACION: "" });
+  addBitacora("Reactivar viaje " + id);
+  toast(`Viaje ${id} reactivado`, "ok");
+  renderCurrent();
+}
+
+/* Borrado PERMANENTE: solo admin. Borra el registro por completo (local y nube). */
+async function eliminarPermanenteViaje(id) {
+  if (!puedeEliminarPermanente()) { toast("Solo un administrador puede eliminar permanentemente.", "err"); return; }
+  const v = Store.all("viajes").find((x) => x.ID_VIAJE === id);
+  if (!v) return;
+  if (!confirm(`¿Eliminar PERMANENTEMENTE el viaje ${id}? Se borra por completo (local y nube) y NO se puede deshacer.`)) return;
+  if (!confirm(`Confirma de nuevo: el viaje ${id} desaparecera para todos los usuarios. ¿Continuar?`)) return;
+  addBitacora("Eliminar PERMANENTEMENTE viaje " + id);
+  try { await Store.cloudDeleteRow("viajes", { ID_VIAJE: id }); }
+  catch (e) { toast("Se borro en este equipo; fallo la nube: " + e.message, "err"); renderCurrent(); return; }
+  toast(`Viaje ${id} eliminado permanentemente`, "ok");
   renderCurrent();
 }
 
@@ -2106,6 +2139,10 @@ function bindEvents() {
     if (fact) return openFacturarModal(fact.dataset.facturar);
     const delv = t.closest("[data-del-viaje]");
     if (delv) return eliminarViaje(delv.dataset.delViaje);
+    const delperm = t.closest("[data-delperm]");
+    if (delperm) return eliminarPermanenteViaje(delperm.dataset.delperm);
+    const rest = t.closest("[data-restaurar]");
+    if (rest) return restaurarViaje(rest.dataset.restaurar);
 
     const tab = t.closest("[data-tab]");
     if (tab) { state.adminTab = tab.dataset.tab; viewAdmin(); return; }
@@ -2122,10 +2159,24 @@ function bindEvents() {
   });
 }
 
+/* Muestra un error visible (util cuando algo falla y no hay mensaje). */
+function showFatal(msg) {
+  console.error("App error:", msg);
+  try {
+    const err = $("#login-error");
+    if (err && !$("#login-view").classList.contains("hidden")) {
+      err.textContent = "Error: " + msg;
+      err.classList.remove("hidden");
+    }
+  } catch (e) {}
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   try { Store.init(); } catch (e) { console.error("Store.init", e); }
   try { ensurePermisos(); } catch (e) { console.error("ensurePermisos", e); }
-  bindEvents();
+  window.addEventListener("error", (ev) => showFatal(ev.message || (ev.error && ev.error.message) || "desconocido"));
+  window.addEventListener("unhandledrejection", (ev) => showFatal((ev.reason && ev.reason.message) || String(ev.reason || "promesa rechazada")));
+  try { bindEvents(); } catch (e) { showFatal("No se pudieron enlazar los eventos: " + e.message); }
   // Si ya hay una sesion de Supabase Auth en este dispositivo, entra directo.
   try { restoreCloudSession(); } catch (e) { console.error("restoreCloudSession", e); }
   // Diagnostico visible en caso de que no haya usuarios cargados

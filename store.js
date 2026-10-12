@@ -274,11 +274,21 @@ const Store = {
 
   async _authFetch(path, body) {
     const base = (this.cloud.url || "").replace(/\/+$/, "");
-    const res = await fetch(base + "/auth/v1" + path, {
-      method: "POST",
-      headers: { "apikey": this.cloud.key, "Content-Type": "application/json" },
-      body: JSON.stringify(body || {}),
-    });
+    let ctrl = null, timer = null, res;
+    try {
+      if (typeof AbortController !== "undefined") { ctrl = new AbortController(); timer = setTimeout(() => ctrl.abort(), 20000); }
+      res = await fetch(base + "/auth/v1" + path, {
+        method: "POST",
+        headers: { "apikey": this.cloud.key, "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+    } catch (e) {
+      if (timer) clearTimeout(timer);
+      if (ctrl && ctrl.signal && ctrl.signal.aborted) throw new Error("timeout conectando con la nube");
+      throw new Error("Error de red: " + ((e && e.message) ? e.message : e));
+    }
+    if (timer) clearTimeout(timer);
     const txt = await res.text();
     let json = null; try { json = txt ? JSON.parse(txt) : null; } catch (e) {}
     if (!res.ok) {
@@ -400,6 +410,19 @@ const Store = {
     const res = [];
     for (const table of TABLES) res.push(await this.cloudPushTable(table));
     return res;
+  },
+
+  /* Elimina PERMANENTEMENTE una fila: la borra local y en la nube.
+   * Se usa solo desde el boton de admin "eliminar permanente". */
+  async cloudDeleteRow(table, pkValues) {
+    const pkCols = PK[table] || [];
+    if (!pkCols.length) return false;
+    const keys = (r) => pkCols.every((k) => String(r[k]) === String(pkValues[k]));
+    if (this.cloudEnabled()) {
+      const qs = pkCols.map((k) => k + "=eq." + encodeURIComponent(String(pkValues[k]))).join("&");
+      await this._cloudFetch(table + "?" + qs, { method: "DELETE", Prefer: "return=minimal" });
+    }
+    return this.remove(table, keys) > 0;
   },
 
   /* Descarga UNA tabla y reemplaza la local (conserva columnas privadas). */
