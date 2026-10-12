@@ -23,6 +23,7 @@ const SYNC_KEY = "registro_viajes_sync_url";
 const TABLES = [
   "clientes", "pilotos", "proveedores", "unidades", "rutas", "tarifas", "mem",
   "usuarios", "usuario_cliente", "viajes", "bitacora", "permisos",
+  "mantenimientos", "gastos",
 ];
 
 /* Columnas oficiales de la tabla VIAJES (para CSV/SQL y export) --------- */
@@ -55,6 +56,7 @@ const PK = {
   rutas: ["ID_RUTA"], tarifas: ["ID_RUTA", "OPL"], mem: ["FECHA"],
   usuarios: ["ID_USUARIO"], usuario_cliente: ["ID_USUARIO", "ID_CLIENTE"],
   viajes: ["ID_VIAJE"], bitacora: ["ID_BITACORA"], permisos: ["ROL", "PERMISO"],
+  mantenimientos: ["ID_MANTENIMIENTO"], gastos: ["ID_GASTO"],
 };
 
 /* Columnas numericas por tabla (para import y sincronizacion). */
@@ -64,6 +66,8 @@ const NUMERIC_COLS = {
   rutas: ["KM"],
   tarifas: ["TARIFA_CLIENTE", "TARIFA_OPL", "COMBUSTIBLE_PCT", "Q_DIESEL_PACTADO"],
   mem: ["PRECIO_DIESEL"],
+  mantenimientos: ["SUBTOTAL", "MANO_OBRA", "REPUESTOS", "TOTAL"],
+  gastos: ["MONTO"],
 };
 
 /* Columnas PRIVADAS: nunca se suben a la nube ni se exportan/plantilla.
@@ -446,6 +450,24 @@ const Store = {
     else this.db.usuarios.push(row);
     this.persist();
     return this.db.usuarios.find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase()) || null;
+  },
+
+  /* Dispara la Edge Function `sync-flota` (trae datos de Fleetio a Supabase).
+   * Despues de esto, cloudPullAll() ya trae unidades/mantenimientos/gastos. */
+  async syncFlota() {
+    if (!this.cloudEnabled()) throw new Error("La nube no esta configurada.");
+    if (this.session) { try { await this.ensureToken(); } catch (e) { /* se reintenta y fallara con 401 */ } }
+    const base = (this.cloud.url || "").replace(/\/+$/, "");
+    const token = (this.session && this.session.access_token) || this.cloud.key;
+    const res = await fetch(base + "/functions/v1/sync-flota", {
+      method: "POST",
+      headers: { "apikey": this.cloud.key, "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const t = await res.text();
+    let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
+    if (!res.ok) throw new Error((j && (j.error || j.message)) || (res.status + " " + res.statusText));
+    return j;
   },
 
   /* ---- Empuje automatico al guardar (usa nube o el endpoint legacy) ---- */

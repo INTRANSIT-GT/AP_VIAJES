@@ -45,6 +45,7 @@ const state = {
   validacion: { cliente: "", status: "", texto: "" },
   facturacion: { cliente: "", texto: "" },
   dashboard: { cliente: "", desde: "", hasta: "" },
+  flotaTab: "unidades",
   adminTab: "bitacora",
 };
 
@@ -91,6 +92,8 @@ const PERMISOS_CATALOGO = [
   { key: "tablas_editar_usuarios", grupo: "Tablas", label: "Editar Usuarios / accesos" },
   { key: "tarifas_ver", grupo: "Tarifas", label: "Ver tarifas" },
   { key: "mem_gestionar", grupo: "Tarifas", label: "Cargar tabla MEM" },
+  { key: "flota_ver", grupo: "Flota", label: "Ver datos de Flota (unidades, mantenimientos, gastos)" },
+  { key: "flota_sincronizar", grupo: "Flota", label: "Sincronizar con Fleetio" },
   { key: "usuarios_gestionar", grupo: "Usuarios", label: "Gestionar cuentas de usuarios" },
   { key: "permisos_gestionar", grupo: "Usuarios", label: "Administrar permisos (solo admin)" },
 ];
@@ -101,9 +104,9 @@ const PERMISOS_DEFAULT = {
   admin: PERMISOS_KEYS.slice(),
   operativo: ["viajes_ver", "viajes_crear", "viajes_editar"],
   validador: ["viajes_ver", "viajes_ver_todos", "viajes_validar"],
-  facturador: ["viajes_ver", "viajes_scope_facturado", "viajes_facturar"],
-  gerente_transporte: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "viajes_editar", "viajes_eliminar", "tablas_ver", "tarifas_ver", "tablas_editar_unidades", "tablas_editar_pilotos", "tablas_editar_proveedores", "tablas_editar_rutas", "usuarios_gestionar"],
-  gerente_comercial: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "tablas_ver", "tarifas_ver", "tablas_editar_clientes", "tablas_editar_tarifas"],
+  facturador: ["viajes_ver", "viajes_scope_facturado", "viajes_facturar", "flota_ver"],
+  gerente_transporte: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "viajes_editar", "viajes_eliminar", "tablas_ver", "tarifas_ver", "tablas_editar_unidades", "tablas_editar_pilotos", "tablas_editar_proveedores", "tablas_editar_rutas", "usuarios_gestionar", "flota_ver", "flota_sincronizar"],
+  gerente_comercial: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "tablas_ver", "tarifas_ver", "tablas_editar_clientes", "tablas_editar_tarifas", "flota_ver"],
 };
 
 /* Siembra la tabla de permisos si esta vacia (una fila por rol+permiso). */
@@ -298,6 +301,7 @@ const MENU = [
   { id: "validacion", label: "Validacion", perm: "viajes_validar" },
   { id: "facturacion", label: "Facturacion", perm: "viajes_facturar" },
   { id: "tarifas", label: "Tarifas", perm: "tarifas_ver" },
+  { id: "flota", label: "Flota", perm: "flota_ver" },
   { id: "admin", label: "Administracion", perm: "tablas_ver" },
   { id: "permisos", label: "Permisos", perm: "permisos_gestionar" },
 ];
@@ -324,6 +328,7 @@ function route(view) {
     validacion: ["Validacion de viajes", "Revisa los viajes liquidados: aprueba o rechaza con tus comentarios."],
     facturacion: ["Facturacion", "Asigna el numero de factura a los viajes aprobados por el validador."],
     tarifas: ["Tarifas", "Tarifas de cobro al cliente y de pago al OPL, y el precio MEM del dia."],
+    flota: ["Flota (Fleetio)", "Unidades, mantenimientos y gastos descargados de Fleetio."],
     admin: ["Administracion", "Catalogos, usuarios, bitacora y exportacion."],
     permisos: ["Permisos por rol", "Solo el administrador puede administrar los permisos."],
   };
@@ -339,6 +344,7 @@ function renderCurrent() {
   else if (state.view === "validacion") viewValidacion();
   else if (state.view === "facturacion") viewFacturacion();
   else if (state.view === "tarifas") viewTarifas();
+  else if (state.view === "flota") viewFlota();
   else if (state.view === "admin") viewAdmin();
   else if (state.view === "permisos") viewPermisos();
 }
@@ -1142,6 +1148,99 @@ const CATALOGS = {
   ] },
 };
 
+/* ================== SECCION: FLOTA (Fleetio) ====================== */
+function viewFlota() {
+  if (!can("flota_ver")) {
+    $("#content").innerHTML = `<div class="card"><div class="alert alert-error">Acceso restringido. Tu perfil no puede ver la flota.</div></div>`;
+    return;
+  }
+  const tab = state.flotaTab || "unidades";
+  const unidades = Store.all("unidades");
+  const mants = Store.all("mantenimientos");
+  const gastos = Store.all("gastos");
+
+  const totalMant = mants.reduce((a, m) => a + (Number(m.TOTAL) || 0), 0);
+  const totalGastos = gastos.reduce((a, g) => a + (Number(g.MONTO) || 0), 0);
+  const puedeSync = can("flota_sincronizar");
+  const ultima = unidades.concat(mants, gastos).map((r) => r.FLOTA_ACTUALIZADO).filter(Boolean).sort().pop() || "";
+  const money = (v) => "$" + (Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const tabs = [
+    { id: "unidades", label: `Unidades (${unidades.length})` },
+    { id: "mantenimientos", label: `Mantenimientos (${mants.length})` },
+    { id: "gastos", label: `Gastos (${gastos.length})` },
+  ];
+
+  let body = "";
+  if (tab === "unidades") {
+    const rows = unidades.slice().sort((a, b) => String(a.UNIDAD).localeCompare(String(b.UNIDAD)));
+    body = `<div class="table-wrap"><table>
+      <thead><tr><th>Unidad</th><th>Nombre</th><th>VIN</th><th>Marca / Modelo</th><th>Año</th><th>Tipo</th><th>Status</th><th>Medidor</th><th>Grupo</th></tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>
+        <td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.NOMBRE)}</td><td>${esc(r.VIN)}</td>
+        <td>${esc([r.MARCA, r.MODELO].filter(Boolean).join(" "))}</td><td>${esc(r.ANIO)}</td>
+        <td>${esc(r.TIPO_UNIDAD)}</td><td>${esc(r.FLEETIO_STATUS)}</td>
+        <td>${esc(r.MEDIDOR)}${r.MEDIDOR_UNIDAD ? " " + esc(r.MEDIDOR_UNIDAD) : ""}</td><td>${esc(r.GRUPO)}</td>
+      </tr>`).join("") : `<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">Sin unidades.${puedeSync ? " Usa “Sincronizar Flota”." : " Pide a un administrador que sincronice."}</td></tr>`}</tbody>
+    </table></div>`;
+  } else if (tab === "mantenimientos") {
+    const rows = mants.slice().sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)));
+    body = `<div class="table-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Unidad</th><th>Referencia</th><th>Estado</th><th>Proveedor</th><th>Medidor</th><th>Mano de obra</th><th>Repuestos</th><th>Total</th></tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>
+        <td>${esc(String(r.FECHA).slice(0, 10))}</td><td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.REFERENCIA)}</td>
+        <td>${esc(r.ESTADO)}</td><td>${esc(r.PROVEEDOR)}</td><td>${esc(r.MEDIDOR)}</td>
+        <td>${money(r.MANO_OBRA)}</td><td>${money(r.REPUESTOS)}</td><td class="strong">${money(r.TOTAL)}</td>
+      </tr>`).join("") : `<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">Sin mantenimientos.</td></tr>`}</tbody>
+    </table></div>`;
+  } else {
+    const rows = gastos.slice().sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)));
+    body = `<div class="table-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Unidad</th><th>Tipo</th><th>Proveedor</th><th>Monto</th><th>Notas</th></tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>
+        <td>${esc(String(r.FECHA).slice(0, 10))}</td><td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.TIPO)}</td>
+        <td>${esc(r.PROVEEDOR)}</td><td class="strong">${money(r.MONTO)}</td><td class="wrap">${esc(r.NOTAS)}</td>
+      </tr>`).join("") : `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Sin gastos.</td></tr>`}</tbody>
+    </table></div>`;
+  }
+
+  $("#content").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="muted small">Unidades</div><div class="n">${unidades.length}</div></div>
+      <div class="kpi"><div class="muted small">Mantenimientos</div><div class="n">${mants.length}</div></div>
+      <div class="kpi"><div class="muted small">Costo mantenimientos</div><div class="n">${money(totalMant)}</div></div>
+      <div class="kpi"><div class="muted small">Gastos</div><div class="n">${money(totalGastos)}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div><h3>Flota (Fleetio)</h3><p class="muted small">Datos descargados de Fleetio.${ultima ? " Ultima sincronizacion: " + esc(ultima.slice(0, 16).replace("T", " ")) : ""}</p></div>
+        <div>${puedeSync ? `<button class="btn btn-primary" id="btn-flota-sync">Sincronizar Flota</button>` : ""}</div>
+      </div>
+      <div class="toolbar">
+        ${tabs.map((t) => `<button class="btn ${tab === t.id ? "btn-primary" : ""}" data-flotatab="${t.id}">${esc(t.label)}</button>`).join(" ")}
+        <span id="flota-msg" class="muted small"></span>
+      </div>
+      ${body}
+    </div>`;
+}
+
+async function syncFlotaNow() {
+  const m = $("#flota-msg");
+  if (m) m.textContent = "Sincronizando con Fleetio...";
+  const btn = $("#btn-flota-sync");
+  if (btn) { btn.disabled = true; btn.textContent = "Sincronizando..."; }
+  try {
+    const r = await Store.syncFlota();
+    try { await Store.cloudPullAll(); } catch (e) {}
+    toast(`Flota sincronizada: ${r.unidades || 0} unidades, ${r.mantenimientos || 0} mantenimientos, ${r.gastos || 0} gastos`, "ok");
+    renderCurrent();
+  } catch (e) {
+    if (m) m.textContent = "Error: " + e.message;
+    toast("No se pudo sincronizar: " + e.message, "err");
+    if (btn) { btn.disabled = false; btn.textContent = "Sincronizar Flota"; }
+  }
+}
+
 function viewAdmin() {
   if (!can("tablas_ver")) {
     $("#content").innerHTML = `<div class="card"><div class="alert alert-error">Acceso restringido. Tu perfil no puede ver las tablas.</div></div>`;
@@ -1903,6 +2002,9 @@ function bindEvents() {
     if (t.id === "btn-save-viaje") return saveViaje();
     if (t.id === "btn-reset-viaje" || t.id === "btn-cancel-edit") { resetForm(); afterForm(); return; }
     if (t.id === "btn-export-viajes") return download("viajes.csv", toCSV(filteredViajes(), visibleViajeColumns()));
+    if (t.id === "btn-flota-sync") return syncFlotaNow();
+    const ft = t.closest("[data-flotatab]");
+    if (ft) { state.flotaTab = ft.dataset.flotatab; renderCurrent(); return; }
     if (t.id === "btn-clear-filtros") { state.consulta = { cliente: "", status: "", desde: "", hasta: "", texto: "" }; renderCurrent(); return; }
     if (t.id === "btn-toggle-eliminados") { state.consultarEliminados = !state.consultarEliminados; renderCurrent(); return; }
     if (t.id === "btn-export-sql") return download("esquema_viajes.sql", generateSQL(), "text/plain;charset=utf-8");
