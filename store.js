@@ -363,18 +363,31 @@ const Store = {
     return true;
   },
 
-  /* Sube (upsert) una tabla completa a Supabase. */
+  /* Sube (upsert) una tabla completa a Supabase.
+   * Deduplica por clave primaria: Postgres rechaza un upsert si la misma
+   * clave aparece dos veces en el mismo envio ("cannot affect row a second
+   * time"). Tambien omite filas sin clave (p. ej. ID vacio). */
   async cloudPushTable(table) {
     const rows = this.all(table);
     if (!rows.length) return { ok: true, table, count: 0 };
-    const pk = (PK[table] || []).join(",");
-    const qs = pk ? ("?on_conflict=" + encodeURIComponent(pk)) : "";
+    const pkCols = PK[table] || [];
+    let clean = rows;
+    if (pkCols.length) {
+      const byKey = new Map();
+      rows.forEach((r) => {
+        if (pkCols.some((k) => r[k] === null || r[k] === undefined || String(r[k]) === "")) return; // sin clave: no se sube
+        byKey.set(pkCols.map((k) => String(r[k])).join("|"), r); // si hay repetidas, gana la ultima
+      });
+      clean = Array.from(byKey.values());
+      if (!clean.length) return { ok: true, table, count: 0, skipped: rows.length };
+    }
+    const qs = pkCols.length ? ("?on_conflict=" + encodeURIComponent(pkCols.join(","))) : "";
     await this._cloudFetch(table + qs, {
       method: "POST",
       Prefer: "resolution=merge-duplicates,return=minimal",
-      body: JSON.stringify(rows.map((r) => this._stringify(table, r))),
+      body: JSON.stringify(clean.map((r) => this._stringify(table, r))),
     });
-    return { ok: true, table, count: rows.length };
+    return { ok: true, table, count: clean.length };
   },
 
   /* Sube todas las tablas. */
