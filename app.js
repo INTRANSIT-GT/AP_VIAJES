@@ -848,7 +848,11 @@ function viajesVisibles(incluirEliminados) {
     rows = rows.filter((v) => [STATUS_APROBADO, STATUS_FACTURADO].includes(v.STATUS));
   } else {
     const ids = allowedClientes().map((c) => c.ID_CLIENTE);
-    rows = rows.filter((v) => ids.includes(v["ID-CLIENTE"]));
+    const me = miUsuario();
+    rows = rows.filter((v) =>
+      ids.includes(v["ID-CLIENTE"]) ||
+      (!!me && String(v.USUARIO_EDITOR || "").toLowerCase().trim() === me) // sus propios viajes
+    );
   }
   return rows;
 }
