@@ -82,9 +82,6 @@ h1, h2, h3 { margin: 0; }
 .brand-full { display: block; height: 46px; width: auto; max-width: 240px; margin: 0 auto 14px; }
 .brand-mini { display: block; height: 26px; width: auto; }
 .brand h1 { font-size: 1.35rem; font-weight: 700; }
-.login-help { margin-top: 18px; font-size: .82rem; color: var(--muted); }
-.login-help summary { cursor: pointer; }
-.login-help ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
 .login-services {
   display: flex; align-items: center; justify-content: center;
   gap: 18px; margin-top: 22px; padding-top: 16px;
@@ -179,6 +176,10 @@ textarea { min-height: 72px; resize: vertical; }
 .user-box { display: flex; align-items: center; gap: 12px; }
 .topbar .btn-ghost { color: var(--primary); border-color: var(--line); background: #fff; }
 .topbar .btn-ghost:hover { background: var(--bg); color: var(--primary-d); }
+.topbar-title { min-width: 0; }
+/* Boton hamburguesa y fondo del menu: solo existen en movil */
+.btn-menu { display: none; }
+.nav-backdrop { display: none; }
 .user-chip { display: flex; align-items: center; gap: 9px; }
 .avatar {
   width: 38px; height: 38px; border-radius: 50%;
@@ -202,9 +203,6 @@ textarea { min-height: 72px; resize: vertical; }
 @media (max-width: 980px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 700px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-  .app { grid-template-columns: 1fr; }
-  .sidebar { flex-direction: row; align-items: center; overflow-x: auto; }
-  .sidebar-brand, .sidebar-foot { display: none; }
 }
 
 .field-group-title {
@@ -292,39 +290,43 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
 /* =====================================================================
  * MOVIL / PWA  (iPhone y Android)
  * ---------------------------------------------------------------------
- * En pantallas de telefono la barra lateral se convierte en una barra de
- * navegacion inferior (fija) y el resto se apila en una columna.
+ * En pantallas de telefono la barra lateral se oculta y se despliega
+ * como panel desde el boton hamburguesa del topbar; el resto se apila
+ * en una columna. En escritorio la barra lateral queda igual.
  * ===================================================================== */
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   :root { font-size: 16px; }
 
-  /* El area de la app deja espacio para la barra inferior + safe-area iOS */
-  .app {
-    display: block;
-    min-height: 100dvh;
-    padding-bottom: calc(64px + env(safe-area-inset-bottom));
-  }
+  .app { display: block; min-height: 100dvh; }
 
-  /* ------------------- Navegacion inferior ------------------- */
+  /* ---------------- Menu lateral desplegable ----------------- */
+  /* En movil la barra lateral se oculta y se abre con el boton
+   * hamburguesa (3 lineas) del topbar; se cierra con el fondo oscuro
+   * o al elegir una seccion. */
   .sidebar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
-    flex-direction: row; align-items: stretch;
-    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
-    gap: 2px; overflow-x: auto; overflow-y: hidden;
-    background: linear-gradient(180deg, var(--navy-2), var(--navy));
-    border-top: 1px solid rgba(255,255,255,.12);
-    -webkit-overflow-scrolling: touch;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 70;
+    width: 272px; max-width: 82vw;
+    flex-direction: column; align-items: stretch;
+    padding: calc(16px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    background: linear-gradient(180deg, var(--navy) 0%, var(--navy-2) 100%);
+    border-right: 1px solid rgba(255,255,255,.12);
+    transform: translateX(-104%);
+    transition: transform .25s ease;
+    box-shadow: 0 0 40px rgba(0,0,0,.45);
   }
-  .sidebar-brand, .sidebar-foot { display: none; }
-  .nav { flex-direction: row; gap: 4px; flex: 0 0 auto; }
-  .nav-item {
-    flex: 0 0 auto; flex-direction: column; gap: 3px;
-    padding: 7px 8px; font-size: .64rem; text-align: center;
-    min-width: 66px; max-width: 96px; border-radius: 10px; line-height: 1.15;
-    white-space: normal; overflow-wrap: anywhere;
+  .app.nav-open .sidebar { transform: translateX(0); }
+  .sidebar-brand { display: flex; }
+  .sidebar-foot { display: block; }
+  .nav { flex-direction: column; gap: 4px; }
+  .nav-item { flex: none; flex-direction: row; gap: 10px; text-align: left; padding: 12px; font-size: .95rem; width: 100%; }
+
+  .nav-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 65;
+    background: rgba(6, 20, 34, .55); opacity: 0; visibility: hidden;
+    transition: opacity .2s;
   }
-  .nav-item .nav-ico { font-size: 1.2rem; width: auto; }
-  .nav-item.active { box-shadow: none; }
+  .app.nav-open .nav-backdrop { opacity: 1; visibility: visible; }
 
   /* ------------------------- Topbar -------------------------- */
   .topbar {
@@ -332,7 +334,13 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
     padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
     gap: 10px;
   }
-  .topbar > div:first-child { flex: 1 1 auto; min-width: 0; }
+  .btn-menu {
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    flex: 0 0 auto; width: 42px; height: 42px; padding: 0;
+    background: #fff; border: 1px solid var(--line); border-radius: 9px; cursor: pointer;
+  }
+  .btn-menu span { display: block; width: 20px; height: 2px; border-radius: 2px; background: var(--primary); }
+  .topbar-title { flex: 1 1 auto; min-width: 0; }
   .topbar h2 { font-size: .98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #view-sub { display: none; }
   .user-box { gap: 8px; flex: 0 0 auto; }
@@ -371,9 +379,9 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
   .modal-actions { flex-direction: column-reverse; }
   .modal-actions .btn { width: 100%; }
 
-  /* Aviso flotante por encima de la barra inferior */
+  /* Aviso flotante */
   .toast {
-    left: 12px; right: 12px; bottom: calc(78px + env(safe-area-inset-bottom));
+    left: 12px; right: 12px; bottom: calc(22px + env(safe-area-inset-bottom));
     transform: none; text-align: center;
   }
 
@@ -402,28 +410,16 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
       </div>
 
       <label class="field">
-        <span>Usuario</span>
-        <input type="text" id="login-user" required placeholder="ej. norte" />
+        <span>Usuario o correo</span>
+        <input type="text" id="login-user" required placeholder="usuario o tu@correo.com" autocomplete="username" />
       </label>
       <label class="field">
         <span>Contrasena</span>
-        <input type="password" id="login-pass" required placeholder="••••••••" />
+        <input type="password" id="login-pass" required placeholder="••••••••" autocomplete="current-password" />
       </label>
 
       <button type="submit" class="btn btn-primary btn-block">Entrar</button>
       <div id="login-error" class="alert alert-error hidden"></div>
-
-      <details class="login-help">
-        <summary>Usuarios de prueba</summary>
-        <ul>
-          <li><b>admin / admin123</b> — Administrador (todo)</li>
-          <li><b>operativo / demo123</b> — Operativo (carga viajes del cliente asignado)</li>
-          <li><b>validador / demo123</b> — Validador (aprueba/rechaza liquidados)</li>
-          <li><b>facturador / demo123</b> — Facturador (asigna factura)</li>
-          <li><b>gtransporte / demo123</b> — Gerente Transporte</li>
-          <li><b>gcomercial / demo123</b> — Gerente Comercial</li>
-        </ul>
-      </details>
 
       <div class="login-services" aria-hidden="true">
         <img src="assets/svc-almacenaje.png" alt="Servicio de Almacenaje" title="Servicio de Almacenaje" />
@@ -445,10 +441,14 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
         <div class="sync-state" id="sync-state">Datos locales</div>
       </div>
     </aside>
+    <div class="nav-backdrop" id="nav-backdrop"></div>
 
     <div class="main">
       <header class="topbar">
-        <div>
+        <button id="btn-menu" class="btn-menu" aria-label="Abrir menu" aria-expanded="false">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="topbar-title">
           <h2 id="view-title">Registro de Viajes</h2>
           <p id="view-sub" class="muted small"></p>
         </div>
@@ -478,6 +478,36 @@ td.wrap, th.wrap { white-space: normal; min-width: 160px; }
   <!-- ============================ TOAST ============================ -->
   <div id="toast" class="toast hidden"></div>
 
+<script>
+/* =====================================================================
+ * config.js - Datos de conexion al backend (Supabase)
+ * ---------------------------------------------------------------------
+ * Rellena aqui los DOS valores de tu proyecto Supabase para que TODOS
+ * los usuarios queden conectados automaticamente, sin escribir nada.
+ *
+ *   SUPABASE_URL      -> Project URL          (ej. https://abcd1234.supabase.co)
+ *   SUPABASE_ANON_KEY -> anon public key      (la que empieza con eyJ... )
+ *
+ * Nota: la key "anon" es PUBLICA (va en el navegador de cada usuario).
+ * La seguridad real la dan las POLITICAS (RLS) de Supabase: con Supabase
+ * Auth activado, solo los usuarios con sesion iniciada acceden a los datos
+ * (ver activar_auth.sql).
+ *
+ * AUTH_EMAIL_DOMAIN: los usuarios entran con "usuario + contrasena"; por
+ * dentro la app convierte "usuario" en "usuario@AUTH_EMAIL_DOMAIN" para
+ * Supabase Auth. Ej.: usuario "admin" -> "admin@intransit.gt".
+ * ===================================================================== */
+window.APP_CONFIG = {
+  SUPABASE_URL: "",
+  SUPABASE_ANON_KEY: "",
+  AUTH_EMAIL_DOMAIN: "intransit.gt",
+  /* Supabase Auth (login con sesion). DESACTIVADO por ahora:
+   * la app valida el login contra la tabla local `usuarios`.
+   * Ponlo en true SOLO despues de crear las cuentas en Supabase
+   * (Authentication > Users) y de correr activar_auth.sql. */
+  AUTH_ENABLED: true,
+};
+</script>
 <script>
 /* =====================================================================
  * seed.js - Datos iniciales del prototipo "Registro de Viajes"
@@ -612,6 +642,7 @@ const SYNC_KEY = "registro_viajes_sync_url";
 const TABLES = [
   "clientes", "pilotos", "proveedores", "unidades", "rutas", "tarifas", "mem",
   "usuarios", "usuario_cliente", "viajes", "bitacora", "permisos",
+  "mantenimientos", "gastos",
 ];
 
 /* Columnas oficiales de la tabla VIAJES (para CSV/SQL y export) --------- */
@@ -627,6 +658,7 @@ const VIAJES_COLUMNS = [
 const VIAJES_WORKFLOW_COLUMNS = [
   "REVISADO_POR", "FECHA_REVISION", "NUMERO_FACTURA", "FECHA_FACTURA", "COMENTARIO_VALIDACION",
   "ELIMINADO", "ELIMINADO_POR", "FECHA_ELIMINACION",
+  "USUARIO_EDITOR",
 ];
 
 /* Columnas de tarifa/combustible cargadas automaticamente al viaje.
@@ -644,6 +676,7 @@ const PK = {
   rutas: ["ID_RUTA"], tarifas: ["ID_RUTA", "OPL"], mem: ["FECHA"],
   usuarios: ["ID_USUARIO"], usuario_cliente: ["ID_USUARIO", "ID_CLIENTE"],
   viajes: ["ID_VIAJE"], bitacora: ["ID_BITACORA"], permisos: ["ROL", "PERMISO"],
+  mantenimientos: ["ID_MANTENIMIENTO"], gastos: ["ID_GASTO"],
 };
 
 /* Columnas numericas por tabla (para import y sincronizacion). */
@@ -653,10 +686,20 @@ const NUMERIC_COLS = {
   rutas: ["KM"],
   tarifas: ["TARIFA_CLIENTE", "TARIFA_OPL", "COMBUSTIBLE_PCT", "Q_DIESEL_PACTADO"],
   mem: ["PRECIO_DIESEL"],
+  mantenimientos: ["SUBTOTAL", "MANO_OBRA", "REPUESTOS", "TOTAL"],
+  gastos: ["MONTO"],
 };
+
+/* Columnas PRIVADAS: nunca se suben a la nube ni se exportan/plantilla.
+ * (Las contraseñas las maneja Supabase Auth, no la base compartida.) */
+const PRIVATE_COLUMNS = { usuarios: ["PASSWORD"] };
 
 /* Configuracion del backend en la nube (Supabase). */
 const CLOUD_KEY = "registro_viajes_cloud";
+/* Sesion de Supabase Auth (token JWT) de este dispositivo. */
+const AUTH_KEY = "registro_viajes_auth";
+/* Dominio para convertir el "usuario" en email de Supabase Auth. */
+const AUTH_DOMAIN_DEFAULT = "intransit.gt";
 
 function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
@@ -674,14 +717,38 @@ const Store = {
   db: null,
   syncUrl: safeStorage.get(SYNC_KEY) || "",
   cloud: { url: "", key: "" },
+  session: null,
+  authDomain: AUTH_DOMAIN_DEFAULT,
 
   /* -------------------------------------------------------------- */
   init() {
-    // Config de la nube (si esta guardada)
+    // Config de la nube: prioridad a lo guardado en este navegador;
+    // si no hay nada, usa los valores de config.js (window.APP_CONFIG).
+    const cfg = (typeof window !== "undefined" && window.APP_CONFIG) || {};
+    const preset = {
+      url: String(cfg.SUPABASE_URL || "").trim().replace(/\/+$/, ""),
+      key: String(cfg.SUPABASE_ANON_KEY || "").trim(),
+    };
+    this.cloud = { url: "", key: "" };
     try {
       const rawCloud = safeStorage.get(CLOUD_KEY);
-      if (rawCloud) { const c = JSON.parse(rawCloud); this.cloud = { url: (c.url || "").trim(), key: (c.key || "").trim() }; }
+      if (rawCloud) {
+        const c = JSON.parse(rawCloud);
+        this.cloud = { url: (c.url || "").trim(), key: (c.key || "").trim() };
+      }
     } catch (e) { this.cloud = { url: "", key: "" }; }
+    if (!this.cloud.url || !this.cloud.key) {
+      if (preset.url && preset.key) this.cloud = preset;
+    }
+
+    // Dominio de email para el login (Supabase Auth) y sesion guardada.
+    this.authDomain = String(cfg.AUTH_EMAIL_DOMAIN || AUTH_DOMAIN_DEFAULT).trim() || AUTH_DOMAIN_DEFAULT;
+    this._authEnabled = !!cfg.AUTH_ENABLED;
+    this.session = null;
+    try {
+      const rawAuth = safeStorage.get(AUTH_KEY);
+      if (rawAuth) this.session = JSON.parse(rawAuth);
+    } catch (e) { this.session = null; }
 
     let raw = null;
     try { raw = safeStorage.get(DB_KEY); } catch (e) { raw = null; }
@@ -764,6 +831,9 @@ const Store = {
   /* ---- Config del backend Supabase ---- */
   cloudEnabled() { return !!(this.cloud.url && this.cloud.key); },
 
+  /* Supabase Auth activo (requiere nube + AUTH_ENABLED en config.js). */
+  authEnabled() { return !!(this._authEnabled && this.cloudEnabled()); },
+
   setCloud(url, key) {
     this.cloud = { url: (url || "").trim().replace(/\/+$/, ""), key: (key || "").trim() };
     if (this.cloudEnabled()) safeStorage.set(CLOUD_KEY, JSON.stringify(this.cloud));
@@ -774,30 +844,124 @@ const Store = {
   clearCloud() { this.cloud = { url: "", key: "" }; safeStorage.remove(CLOUD_KEY); },
 
   _cloudHeaders(extra) {
+    // Si hay sesion iniciada (Supabase Auth) se usa su token; si no, la anon key.
+    const token = (this.session && this.session.access_token) ? this.session.access_token : this.cloud.key;
     return Object.assign({
       "apikey": this.cloud.key,
-      "Authorization": "Bearer " + this.cloud.key,
+      "Authorization": "Bearer " + token,
       "Content-Type": "application/json",
     }, extra || {});
   },
 
   async _cloudFetch(path, opts) {
     if (!this.cloudEnabled()) throw new Error("Backend en la nube no configurado.");
+    if (this.session) { try { await this.ensureToken(); } catch (e) { /* se reintenta abajo y fallara con 401 */ } }
     const base = (this.cloud.url || "").replace(/\/+$/, "");
-    const res = await fetch(base + "/rest/v1/" + path, opts);
+    const res = await fetch(base + "/rest/v1/" + path, {
+      method: (opts && opts.method) || "GET",
+      headers: this._cloudHeaders(opts && opts.Prefer ? { Prefer: opts.Prefer } : null),
+      body: opts && opts.body,
+    });
+    const txt = await res.text();
     if (!res.ok) {
       let detail = res.status + " " + res.statusText;
-      try { const j = await res.json(); if (j && (j.message || j.details || j.hint)) detail += " - " + (j.message || j.details || j.hint); } catch (e) {}
+      if (res.status === 401 || res.status === 403) detail = "Sesion no valida o sin permiso. Inicia sesion de nuevo.";
+      try { const j = txt ? JSON.parse(txt) : null; if (j && (j.message || j.details || j.hint)) detail += " - " + (j.message || j.details || j.hint); } catch (e) {}
       throw new Error(detail);
     }
-    const txt = await res.text();
     return txt ? JSON.parse(txt) : null;
   },
 
-  /* Convierte cada valor a texto para que encaje con columnas TEXT. */
-  _stringify(row) {
+  /* ================= Supabase Auth (login con sesion) ============== */
+  /* El "usuario" se convierte en un email interno (usuario@dominio). */
+  emailFor(username) {
+    const u = String(username || "").trim();
+    return u.includes("@") ? u : u + "@" + this.authDomain;
+  },
+
+  loadSession() {
+    try { const r = safeStorage.get(AUTH_KEY); this.session = r ? JSON.parse(r) : null; }
+    catch (e) { this.session = null; }
+    return this.session;
+  },
+  saveSession(s) {
+    this.session = s || null;
+    if (s) safeStorage.set(AUTH_KEY, JSON.stringify(s));
+    else safeStorage.remove(AUTH_KEY);
+  },
+  clearSession() { this.saveSession(null); },
+
+  async _authFetch(path, body) {
+    const base = (this.cloud.url || "").replace(/\/+$/, "");
+    const res = await fetch(base + "/auth/v1" + path, {
+      method: "POST",
+      headers: { "apikey": this.cloud.key, "Content-Type": "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+    const txt = await res.text();
+    let json = null; try { json = txt ? JSON.parse(txt) : null; } catch (e) {}
+    if (!res.ok) {
+      const msg = (json && (json.error_description || json.msg || json.error || json.message)) || (res.status + " " + res.statusText);
+      const err = new Error(msg); err.status = res.status; throw err;
+    }
+    return json;
+  },
+
+  async authSignIn(username, password) {
+    if (!this.cloudEnabled()) throw new Error("La nube no esta configurada.");
+    const email = this.emailFor(username);
+    const j = await this._authFetch("/token?grant_type=password", { email, password });
+    this.saveSession({
+      access_token: j.access_token,
+      refresh_token: j.refresh_token,
+      expires_at: Date.now() + (Number(j.expires_in || 3600) * 1000),
+      email,
+      username: String(username || "").trim(),
+    });
+    return this.session;
+  },
+
+  async authRefresh() {
+    if (!this.session || !this.session.refresh_token) throw new Error("No hay sesion.");
+    const j = await this._authFetch("/token?grant_type=refresh_token", { refresh_token: this.session.refresh_token });
+    this.saveSession(Object.assign({}, this.session, {
+      access_token: j.access_token,
+      refresh_token: j.refresh_token || this.session.refresh_token,
+      expires_at: Date.now() + (Number(j.expires_in || 3600) * 1000),
+    }));
+    return this.session;
+  },
+
+  /* Devuelve un token valido (renueva si esta por expirar). */
+  async ensureToken() {
+    if (!this.session) return null;
+    if (Date.now() > (Number(this.session.expires_at) || 0) - 60000) await this.authRefresh();
+    return this.session.access_token;
+  },
+
+  async authSignOut() {
+    const tok = this.session && this.session.access_token;
+    const base = (this.cloud.url || "").replace(/\/+$/, "");
+    this.clearSession(); // local inmediato (no esperar a la red)
+    try {
+      if (tok) {
+        await fetch(base + "/auth/v1/logout", {
+          method: "POST",
+          headers: { "apikey": this.cloud.key, "Authorization": "Bearer " + tok },
+        });
+      }
+    } catch (e) {}
+  },
+
+  hasSession() { return !!(this.session && this.session.access_token); },
+
+  /* Convierte cada valor a texto para que encaje con columnas TEXT.
+   * Omite las columnas privadas (p. ej. contraseñas). */
+  _stringify(table, row) {
+    const priv = PRIVATE_COLUMNS[table] || [];
     const out = {};
     Object.keys(row).forEach((k) => {
+      if (priv.includes(k)) return;
       const v = row[k];
       out[k] = (v === null || v === undefined) ? null : String(v);
     });
@@ -819,22 +983,35 @@ const Store = {
 
   /* Prueba de conexion: intenta leer una fila de "clientes". */
   async cloudTest() {
-    await this._cloudFetch("clientes?select=*&limit=1", { headers: this._cloudHeaders() });
+    await this._cloudFetch("clientes?select=*&limit=1", {});
     return true;
   },
 
-  /* Sube (upsert) una tabla completa a Supabase. */
+  /* Sube (upsert) una tabla completa a Supabase.
+   * Deduplica por clave primaria: Postgres rechaza un upsert si la misma
+   * clave aparece dos veces en el mismo envio ("cannot affect row a second
+   * time"). Tambien omite filas sin clave (p. ej. ID vacio). */
   async cloudPushTable(table) {
     const rows = this.all(table);
     if (!rows.length) return { ok: true, table, count: 0 };
-    const pk = (PK[table] || []).join(",");
-    const qs = pk ? ("?on_conflict=" + encodeURIComponent(pk)) : "";
+    const pkCols = PK[table] || [];
+    let clean = rows;
+    if (pkCols.length) {
+      const byKey = new Map();
+      rows.forEach((r) => {
+        if (pkCols.some((k) => r[k] === null || r[k] === undefined || String(r[k]) === "")) return; // sin clave: no se sube
+        byKey.set(pkCols.map((k) => String(r[k])).join("|"), r); // si hay repetidas, gana la ultima
+      });
+      clean = Array.from(byKey.values());
+      if (!clean.length) return { ok: true, table, count: 0, skipped: rows.length };
+    }
+    const qs = pkCols.length ? ("?on_conflict=" + encodeURIComponent(pkCols.join(","))) : "";
     await this._cloudFetch(table + qs, {
       method: "POST",
-      headers: this._cloudHeaders({ Prefer: "resolution=merge-duplicates,return=minimal" }),
-      body: JSON.stringify(rows.map((r) => this._stringify(r))),
+      Prefer: "resolution=merge-duplicates,return=minimal",
+      body: JSON.stringify(clean.map((r) => this._stringify(table, r))),
     });
-    return { ok: true, table, count: rows.length };
+    return { ok: true, table, count: clean.length };
   },
 
   /* Sube todas las tablas. */
@@ -844,14 +1021,73 @@ const Store = {
     return res;
   },
 
-  /* Descarga todas las tablas y reemplaza las locales. */
-  async cloudPullAll() {
-    for (const table of TABLES) {
-      const rows = await this._cloudFetch(table + "?select=*&limit=100000", { headers: this._cloudHeaders() });
-      if (Array.isArray(rows)) this.db[table] = rows.map((r) => this._coerce(table, r));
+  /* Descarga UNA tabla y reemplaza la local (conserva columnas privadas). */
+  async cloudPullTable(table) {
+    const rows = await this._cloudFetch(table + "?select=*&limit=100000", {});
+    if (!Array.isArray(rows)) return this.db[table];
+    const priv = PRIVATE_COLUMNS[table] || [];
+    // Conserva las columnas privadas locales (p. ej. PASSWORD para modo offline).
+    const localPriv = {};
+    if (priv.length) {
+      const keyOf = (r) => (PK[table] || []).map((k) => String(r[k])).join("|");
+      this.all(table).forEach((r) => { localPriv[keyOf(r)] = priv.reduce((a, k) => { a[k] = r[k]; return a; }, {}); });
     }
+    this.db[table] = rows.map((r) => {
+      const row = this._coerce(table, r);
+      if (priv.length) Object.assign(row, localPriv[(PK[table] || []).map((k) => String(row[k])).join("|")] || {});
+      return row;
+    });
     this.persist();
-    return this.db;
+    return this.db[table];
+  },
+
+  /* Descarga todas las tablas. Si una falla, sigue con las demas para que
+   * un problema en una sola tabla no deje sin perfil al usuario. */
+  async cloudPullAll() {
+    const errors = [];
+    for (const table of TABLES) {
+      try { await this.cloudPullTable(table); }
+      catch (e) { errors.push(table + ": " + e.message); }
+    }
+    return { ok: errors.length === 0, errors };
+  },
+
+  /* Trae el perfil de UN usuario por su correo (campo USUARIO) y lo fusiona
+   * con lo local. Es la via principal de login: no depende de las demas tablas. */
+  async fetchPerfil(username) {
+    const u = String(username || "").trim();
+    let rows = [];
+    try {
+      rows = await this._cloudFetch("usuarios?select=*&USUARIO=ilike." + encodeURIComponent(u), {});
+    } catch (e) {
+      rows = await this._cloudFetch("usuarios?select=*&limit=100000", {});
+      if (Array.isArray(rows)) rows = rows.filter((r) => String(r.USUARIO).toLowerCase() === u.toLowerCase());
+    }
+    if (!Array.isArray(rows) || !rows.length) return null;
+    const row = this._coerce("usuarios", rows[0]);
+    const i = this.all("usuarios").findIndex((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
+    if (i >= 0) this.db.usuarios[i] = Object.assign({}, this.db.usuarios[i], row);
+    else this.db.usuarios.push(row);
+    this.persist();
+    return this.db.usuarios.find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase()) || null;
+  },
+
+  /* Dispara la Edge Function `sync-flota` (trae datos de Fleetio a Supabase).
+   * Despues de esto, cloudPullAll() ya trae unidades/mantenimientos/gastos. */
+  async syncFlota() {
+    if (!this.cloudEnabled()) throw new Error("La nube no esta configurada.");
+    if (this.session) { try { await this.ensureToken(); } catch (e) { /* se reintenta y fallara con 401 */ } }
+    const base = (this.cloud.url || "").replace(/\/+$/, "");
+    const token = (this.session && this.session.access_token) || this.cloud.key;
+    const res = await fetch(base + "/functions/v1/sync-flota", {
+      method: "POST",
+      headers: { "apikey": this.cloud.key, "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    const t = await res.text();
+    let j = null; try { j = t ? JSON.parse(t) : null; } catch (e) {}
+    if (!res.ok) throw new Error((j && (j.error || j.message)) || (res.status + " " + res.statusText));
+    return j;
   },
 
   /* ---- Empuje automatico al guardar (usa nube o el endpoint legacy) ---- */
@@ -933,6 +1169,7 @@ const state = {
   validacion: { cliente: "", status: "", texto: "" },
   facturacion: { cliente: "", texto: "" },
   dashboard: { cliente: "", desde: "", hasta: "" },
+  flotaTab: "unidades",
   adminTab: "bitacora",
 };
 
@@ -979,6 +1216,8 @@ const PERMISOS_CATALOGO = [
   { key: "tablas_editar_usuarios", grupo: "Tablas", label: "Editar Usuarios / accesos" },
   { key: "tarifas_ver", grupo: "Tarifas", label: "Ver tarifas" },
   { key: "mem_gestionar", grupo: "Tarifas", label: "Cargar tabla MEM" },
+  { key: "flota_ver", grupo: "Flota", label: "Ver datos de Flota (unidades, mantenimientos, gastos)" },
+  { key: "flota_sincronizar", grupo: "Flota", label: "Sincronizar con Fleetio" },
   { key: "usuarios_gestionar", grupo: "Usuarios", label: "Gestionar cuentas de usuarios" },
   { key: "permisos_gestionar", grupo: "Usuarios", label: "Administrar permisos (solo admin)" },
 ];
@@ -989,9 +1228,9 @@ const PERMISOS_DEFAULT = {
   admin: PERMISOS_KEYS.slice(),
   operativo: ["viajes_ver", "viajes_crear", "viajes_editar"],
   validador: ["viajes_ver", "viajes_ver_todos", "viajes_validar"],
-  facturador: ["viajes_ver", "viajes_scope_facturado", "viajes_facturar"],
-  gerente_transporte: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "viajes_editar", "viajes_eliminar", "tablas_ver", "tarifas_ver", "tablas_editar_unidades", "tablas_editar_pilotos", "tablas_editar_proveedores", "tablas_editar_rutas", "usuarios_gestionar"],
-  gerente_comercial: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "tablas_ver", "tarifas_ver", "tablas_editar_clientes", "tablas_editar_tarifas"],
+  facturador: ["viajes_ver", "viajes_scope_facturado", "viajes_facturar", "flota_ver"],
+  gerente_transporte: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "viajes_editar", "viajes_eliminar", "tablas_ver", "tarifas_ver", "tablas_editar_unidades", "tablas_editar_pilotos", "tablas_editar_proveedores", "tablas_editar_rutas", "usuarios_gestionar", "flota_ver", "flota_sincronizar"],
+  gerente_comercial: ["tablero_ver", "viajes_ver", "viajes_ver_todos", "tablas_ver", "tarifas_ver", "tablas_editar_clientes", "tablas_editar_tarifas", "flota_ver"],
 };
 
 /* Siembra la tabla de permisos si esta vacia (una fila por rol+permiso). */
@@ -1035,12 +1274,32 @@ function statusOptionsForForm() {
   return STATUS_OPERATIVO;
 }
 
-/* Regla de edicion de un viaje segun su estatus y permisos. */
+/* Usuario (correo) del que tiene la sesion. */
+function miUsuario() { return String((state.user && state.user.USUARIO) || "").toLowerCase().trim(); }
+/* ¿El viaje lo registro este usuario? (columna USUARIO_EDITOR) */
+function esDuenoViaje(v) {
+  const me = miUsuario();
+  return !!me && !!v && String(v.USUARIO_EDITOR || "").toLowerCase().trim() === me;
+}
+
+/* Regla de edicion de un viaje:
+ * - Admin: ve y modifica todos.
+ * - Operativo: solo modifica los viajes QUE EL REGISTRO (USUARIO_EDITOR).
+ * - Gerencia / validador / facturacion: solo ven, no modifican. */
 function canEditViaje(v) {
   if (!v || v.ELIMINADO === "Si") return false;
+  if (state.user.ROL === "admin") return true;
+  if (state.user.ROL !== "operativo") return false;
   if (!can("viajes_editar")) return false;
-  if (state.user.ROL !== "admin" && STATUS_BLOQUEADOS.includes(v.STATUS)) return false;
-  return true;
+  if (STATUS_BLOQUEADOS.includes(v.STATUS)) return false;
+  return esDuenoViaje(v);
+}
+
+/* Borrado: admin o el operativo dueno del viaje con permiso de eliminar. */
+function puedeEliminarViaje(v) {
+  if (!v || v.ELIMINADO === "Si") return false;
+  if (state.user.ROL === "admin") return true;
+  return can("viajes_eliminar") && esDuenoViaje(v);
 }
 
 /* ------------------------------- Toast ---------------------------- */
@@ -1068,8 +1327,8 @@ function closeModal() {
 function addBitacora(accion) {
   Store.insert("bitacora", {
     ID_BITACORA: Store.nextId("bitacora", "ID_BITACORA", "B-", 5),
-    ID_USUARIO: state.user.ID_USUARIO,
-    USUARIO: state.user.USUARIO,
+    ID_USUARIO: state.user ? state.user.ID_USUARIO : "",
+    USUARIO: state.user ? state.user.USUARIO : "anonimo",
     FECHA: nowStr(),
     ACCION: accion,
     EQUIPO: `${navigator.platform || ""} · ${navigator.userAgent.slice(0, 60)}`,
@@ -1077,18 +1336,72 @@ function addBitacora(accion) {
 }
 
 /* ============================= LOGIN ============================== */
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
   const u = $("#login-user").value.trim();
   const p = $("#login-pass").value;
   const err = $("#login-error");
-  const user = Store.all("usuarios").find((x) => x.USUARIO === u && x.PASSWORD === p);
-  if (!user) { err.textContent = "Usuario o contrasena incorrectos."; err.classList.remove("hidden"); return; }
-  if (user.ACTIVO !== "Si") { err.textContent = "El usuario esta inactivo. Contacta al administrador."; err.classList.remove("hidden"); return; }
-  err.classList.add("hidden");
-  state.user = user;
-  addBitacora("Login");
-  enterApp();
+  const btn = $("#login-form").querySelector('button[type="submit"]');
+  const showErr = (m) => { err.textContent = m; err.classList.remove("hidden"); };
+
+  if (!u || !p) { showErr("Escribe usuario y contrasena."); return; }
+  if (btn) { btn.disabled = true; btn.textContent = "Entrando..."; }
+
+  try {
+    // Con Supabase Auth activo: valida contra la sesion (email interno).
+    let authOk = false;
+    if (Store.authEnabled()) {
+      try {
+        await Store.authSignIn(u, p);
+        authOk = true;
+      } catch (e2) {
+        const offline = /Failed to fetch|NetworkError|load failed|Network request failed/i.test(e2.message || "");
+        if (!offline) {
+          showErr("Usuario o contrasena incorrectos, o la cuenta no existe en Supabase (Authentication → Users).");
+          return;
+        }
+        // Sin red: se permite entrar con la validacion local (modo offline).
+      }
+    }
+
+    let user = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === u.toLowerCase());
+    if (!user && authOk) {
+      // Trae el perfil (y los permisos) desde la nube, de forma directa.
+      let pullErr = "";
+      try { user = await Store.fetchPerfil(u); } catch (e) { pullErr = e.message; }
+      try { await Store.cloudPullTable("permisos"); } catch (e) { if (!pullErr) pullErr = e.message; }
+    }
+    if (!user) {
+      showErr("Tu cuenta no tiene perfil asignado en la app." +
+        (pullErr ? " Detalle de la nube: " + pullErr
+                 : " Revisa en Supabase (tabla usuarios) que exista una fila con tu correo en USUARIO y ACTIVO = Si."));
+      return;
+    }
+    if (!authOk && user.PASSWORD !== p) { showErr("Usuario o contrasena incorrectos."); return; }
+    if (user.ACTIVO !== "Si") { showErr("El usuario esta inactivo. Contacta al administrador."); return; }
+
+    err.classList.add("hidden");
+    state.user = user;
+    addBitacora("Login");
+    enterApp();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Entrar"; }
+  }
+}
+
+/* Restaura la sesion de Supabase Auth guardada en este dispositivo. */
+function restoreCloudSession() {
+  if (!Store.authEnabled() || !Store.session) return;
+  Store.ensureToken()
+    .then(async () => {
+      const name = Store.session.username;
+      let u = Store.all("usuarios").find((x) => String(x.USUARIO).toLowerCase() === String(name).toLowerCase());
+      if (!u) { try { u = await Store.fetchPerfil(name); } catch (e) {} }
+      if (!u || u.ACTIVO !== "Si") throw new Error("sin perfil");
+      state.user = u;
+      enterApp();
+    })
+    .catch(() => Store.clearSession());
 }
 
 function syncStateText() {
@@ -1115,9 +1428,11 @@ function enterApp() {
 
 function handleLogout() {
   addBitacora("Logout");
+  if (Store.authEnabled() && Store.hasSession && Store.hasSession()) Store.authSignOut().catch(() => {});
   state.user = null;
   state.form = {};
   $("#app-view").classList.add("hidden");
+  $("#app-view").classList.remove("nav-open");
   $("#login-view").classList.remove("hidden");
   $("#login-pass").value = "";
 }
@@ -1130,6 +1445,7 @@ const MENU = [
   { id: "validacion", label: "Validacion", perm: "viajes_validar" },
   { id: "facturacion", label: "Facturacion", perm: "viajes_facturar" },
   { id: "tarifas", label: "Tarifas", perm: "tarifas_ver" },
+  { id: "flota", label: "Flota", perm: "flota_ver" },
   { id: "admin", label: "Administracion", perm: "tablas_ver" },
   { id: "permisos", label: "Permisos", perm: "permisos_gestionar" },
 ];
@@ -1156,6 +1472,7 @@ function route(view) {
     validacion: ["Validacion de viajes", "Revisa los viajes liquidados: aprueba o rechaza con tus comentarios."],
     facturacion: ["Facturacion", "Asigna el numero de factura a los viajes aprobados por el validador."],
     tarifas: ["Tarifas", "Tarifas de cobro al cliente y de pago al OPL, y el precio MEM del dia."],
+    flota: ["Flota (Fleetio)", "Unidades, mantenimientos y gastos descargados de Fleetio."],
     admin: ["Administracion", "Catalogos, usuarios, bitacora y exportacion."],
     permisos: ["Permisos por rol", "Solo el administrador puede administrar los permisos."],
   };
@@ -1171,6 +1488,7 @@ function renderCurrent() {
   else if (state.view === "validacion") viewValidacion();
   else if (state.view === "facturacion") viewFacturacion();
   else if (state.view === "tarifas") viewTarifas();
+  else if (state.view === "flota") viewFlota();
   else if (state.view === "admin") viewAdmin();
   else if (state.view === "permisos") viewPermisos();
 }
@@ -1549,6 +1867,7 @@ function saveViaje() {
     VIAJES_WORKFLOW_COLUMNS.forEach((k) => { if (row[k] === undefined) row[k] = ""; });
     VIAJES_TARIFA_COLUMNS.forEach((k) => { if (row[k] === undefined) row[k] = ""; });
     if (!row.ELIMINADO) row.ELIMINADO = "No";
+    row.USUARIO_EDITOR = state.user ? state.user.USUARIO : "";
     Store.insert("viajes", row);
     toast(`Viaje ${row.ID_VIAJE} registrado correctamente`, "ok");
   }
@@ -1580,9 +1899,11 @@ function statusBadge(s) {
 function viajesVisibles(incluirEliminados) {
   let rows = Store.all("viajes");
   if (!incluirEliminados) rows = rows.filter((v) => v.ELIMINADO !== "Si");
-  if (can("viajes_scope_facturado")) {
+  if (can("viajes_ver_todos")) {
+    // Ve todo (admin y quien tenga el permiso): sin filtro de cliente ni estado.
+  } else if (can("viajes_scope_facturado")) {
     rows = rows.filter((v) => [STATUS_APROBADO, STATUS_FACTURADO].includes(v.STATUS));
-  } else if (!can("viajes_ver_todos")) {
+  } else {
     const ids = allowedClientes().map((c) => c.ID_CLIENTE);
     rows = rows.filter((v) => ids.includes(v["ID-CLIENTE"]));
   }
@@ -1650,7 +1971,7 @@ function viewConsultar() {
         <table>
           <thead><tr>
             <th>ID Viaje</th><th>Codigo</th><th>Cliente</th><th>Unidad</th><th>Piloto</th>
-            <th>Ruta</th><th>Status</th><th>Fecha Plan</th><th>KM</th><th>Carga</th><th>Viaticos</th><th>Factura / Comentario</th><th></th>
+            <th>Ruta</th><th>Status</th><th>Fecha Plan</th><th>KM</th><th>Carga</th><th>Viaticos</th><th>Factura / Comentario</th><th>Registro</th><th></th>
           </tr></thead>
           <tbody>
             ${rows.length ? rows.map((r) => `
@@ -1667,12 +1988,13 @@ function viewConsultar() {
                 <td>${esc(r.CARGA_VIAJE)}</td>
                 <td>${esc(r["Viáticos"])}</td>
                 <td class="wrap">${r.NUMERO_FACTURA ? "Factura " + esc(r.NUMERO_FACTURA) : (r.COMENTARIO_VALIDACION ? esc(r.COMENTARIO_VALIDACION) : "")}</td>
+                <td>${esc(r.USUARIO_EDITOR)}</td>
                 <td>
                   <button class="btn btn-sm" data-ver="${esc(r.ID_VIAJE)}">Ver</button>
                   ${canEditViaje(r) ? `<button class="btn btn-sm btn-primary" data-edit="${esc(r.ID_VIAJE)}">Editar</button>` : ""}
-                  ${puedeEliminar && r.ELIMINADO !== "Si" ? `<button class="btn btn-sm btn-danger" data-del-viaje="${esc(r.ID_VIAJE)}">Eliminar</button>` : ""}
+                  ${puedeEliminarViaje(r) ? `<button class="btn btn-sm btn-danger" data-del-viaje="${esc(r.ID_VIAJE)}">Eliminar</button>` : ""}
                 </td>
-              </tr>`).join("") : `<tr><td colspan="13" class="muted" style="text-align:center;padding:24px">Sin viajes para los filtros seleccionados.</td></tr>`}
+              </tr>`).join("") : `<tr><td colspan="14" class="muted" style="text-align:center;padding:24px">Sin viajes para los filtros seleccionados.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -1683,6 +2005,7 @@ function eliminarViaje(id) {
   const v = Store.all("viajes").find((x) => x.ID_VIAJE === id);
   if (!v) return;
   if (!can("viajes_eliminar")) { toast("Tu perfil no puede eliminar viajes.", "err"); return; }
+  if (!puedeEliminarViaje(v)) { toast("Solo puedes eliminar los viajes que tu registraste.", "err"); return; }
   if (!confirm(`¿Eliminar el viaje ${id}? Se conserva un registro de auditoria (no se borra fisicamente).`)) return;
   Store.update("viajes", (r) => r.ID_VIAJE === id, { ELIMINADO: "Si", ELIMINADO_POR: state.user.USUARIO, FECHA_ELIMINACION: nowStr() });
   addBitacora("Eliminar viaje " + id);
@@ -1885,7 +2208,9 @@ function openFacturarModal(id) {
 /* ---------------------- Exportacion CSV de viajes ----------------- */
 function toCSV(rows, columns) {
   const q = (v) => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // Evita inyeccion de formulas en Excel/Sheets (CWE-1236).
+    if (/^[=+@\t\r]/.test(s) || (s.charAt(0) === "-" && isNaN(Number(s)))) s = "'" + s;
     return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   return [columns.join(","), ...rows.map((r) => columns.map((c) => q(r[c])).join(","))].join("\r\n");
@@ -1910,6 +2235,7 @@ const CATALOGS = {
     { key: "ID_CLIENTE", label: "ID Cliente", type: "text", pk: true, required: true },
     { key: "CLIENTE", label: "Cliente", type: "text", required: true },
     { key: "CLIENTE_PADRE", label: "Cliente Padre", type: "text" },
+    { key: "GRUPO_FLEETIO", label: "Grupo en Fleetio (sigla)", type: "text" },
     { key: "SERVICIO", label: "Servicio", type: "text" },
     { key: "NOMBRE_USUARIO_PRINCIPAL", label: "Usuario Principal", type: "text" },
     { key: "CORREO", label: "Correo", type: "text" },
@@ -1970,6 +2296,101 @@ const CATALOGS = {
   ] },
 };
 
+/* ================== SECCION: FLOTA (Fleetio) ====================== */
+function viewFlota() {
+  if (!can("flota_ver")) {
+    $("#content").innerHTML = `<div class="card"><div class="alert alert-error">Acceso restringido. Tu perfil no puede ver la flota.</div></div>`;
+    return;
+  }
+  const tab = state.flotaTab || "unidades";
+  const unidades = Store.all("unidades");
+  const mants = Store.all("mantenimientos");
+  const gastos = Store.all("gastos");
+  const cliById = {};
+  Store.all("clientes").forEach((c) => { cliById[c.ID_CLIENTE] = c.CLIENTE; });
+
+  const totalMant = mants.reduce((a, m) => a + (Number(m.TOTAL) || 0), 0);
+  const totalGastos = gastos.reduce((a, g) => a + (Number(g.MONTO) || 0), 0);
+  const puedeSync = can("flota_sincronizar");
+  const ultima = unidades.concat(mants, gastos).map((r) => r.FLOTA_ACTUALIZADO).filter(Boolean).sort().pop() || "";
+  const money = (v) => "$" + (Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const tabs = [
+    { id: "unidades", label: `Unidades (${unidades.length})` },
+    { id: "mantenimientos", label: `Mantenimientos (${mants.length})` },
+    { id: "gastos", label: `Gastos (${gastos.length})` },
+  ];
+
+  let body = "";
+  if (tab === "unidades") {
+    const rows = unidades.slice().sort((a, b) => String(a.UNIDAD).localeCompare(String(b.UNIDAD)));
+    body = `<div class="table-wrap"><table>
+      <thead><tr><th>Unidad</th><th>Tipo</th><th>Status</th><th>Cliente</th><th>Marca / Modelo</th><th>Año</th><th>Medidor</th><th>Color</th></tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>
+        <td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.TIPO_UNIDAD)}</td><td>${esc(r.STATUS)}</td>
+        <td>${esc(cliById[r.ID_CLIENTE] || r.GRUPO || "")}</td>
+        <td>${esc([r.MARCA, r.MODELO].filter(Boolean).join(" "))}</td><td>${esc(r.ANIO)}</td>
+        <td>${esc(r.MEDIDOR)}${r.MEDIDOR_UNIDAD ? " " + esc(r.MEDIDOR_UNIDAD) : ""}</td><td>${esc(r.COLOR)}</td>
+      </tr>`).join("") : `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Sin unidades.${puedeSync ? " Usa “Sincronizar Flota”." : " Pide a un administrador que sincronice."}</td></tr>`}</tbody>
+    </table></div>`;
+  } else if (tab === "mantenimientos") {
+    const rows = mants.slice().sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)));
+    body = `<div class="table-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Unidad</th><th>Referencia</th><th>Estado</th><th>Proveedor</th><th>Medidor</th><th>Mano de obra</th><th>Repuestos</th><th>Total</th></tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>
+        <td>${esc(String(r.FECHA).slice(0, 10))}</td><td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.REFERENCIA)}</td>
+        <td>${esc(r.ESTADO)}</td><td>${esc(r.PROVEEDOR)}</td><td>${esc(r.MEDIDOR)}</td>
+        <td>${money(r.MANO_OBRA)}</td><td>${money(r.REPUESTOS)}</td><td class="strong">${money(r.TOTAL)}</td>
+      </tr>`).join("") : `<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">Sin mantenimientos.</td></tr>`}</tbody>
+    </table></div>`;
+  } else {
+    const rows = gastos.slice().sort((a, b) => String(b.FECHA).localeCompare(String(a.FECHA)));
+    body = `<div class="table-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Unidad</th><th>Tipo</th><th>Proveedor</th><th>Monto</th><th>Notas</th></tr></thead>
+      <tbody>${rows.length ? rows.map((r) => `<tr>
+        <td>${esc(String(r.FECHA).slice(0, 10))}</td><td class="strong">${esc(r.UNIDAD)}</td><td>${esc(r.TIPO)}</td>
+        <td>${esc(r.PROVEEDOR)}</td><td class="strong">${money(r.MONTO)}</td><td class="wrap">${esc(r.NOTAS)}</td>
+      </tr>`).join("") : `<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Sin gastos.</td></tr>`}</tbody>
+    </table></div>`;
+  }
+
+  $("#content").innerHTML = `
+    <div class="kpis">
+      <div class="kpi"><div class="muted small">Unidades</div><div class="n">${unidades.length}</div></div>
+      <div class="kpi"><div class="muted small">Mantenimientos</div><div class="n">${mants.length}</div></div>
+      <div class="kpi"><div class="muted small">Costo mantenimientos</div><div class="n">${money(totalMant)}</div></div>
+      <div class="kpi"><div class="muted small">Gastos</div><div class="n">${money(totalGastos)}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div><h3>Flota (Fleetio)</h3><p class="muted small">Datos descargados de Fleetio.${ultima ? " Ultima sincronizacion: " + esc(ultima.slice(0, 16).replace("T", " ")) : ""}</p></div>
+        <div>${puedeSync ? `<button class="btn btn-primary" id="btn-flota-sync">Sincronizar Flota</button>` : ""}</div>
+      </div>
+      <div class="toolbar">
+        ${tabs.map((t) => `<button class="btn ${tab === t.id ? "btn-primary" : ""}" data-flotatab="${t.id}">${esc(t.label)}</button>`).join(" ")}
+        <span id="flota-msg" class="muted small"></span>
+      </div>
+      ${body}
+    </div>`;
+}
+
+async function syncFlotaNow() {
+  const m = $("#flota-msg");
+  if (m) m.textContent = "Sincronizando con Fleetio...";
+  const btn = $("#btn-flota-sync");
+  if (btn) { btn.disabled = true; btn.textContent = "Sincronizando..."; }
+  try {
+    const r = await Store.syncFlota();
+    try { await Store.cloudPullAll(); } catch (e) {}
+    toast(`Flota sincronizada: ${r.unidades || 0} unidades, ${r.mantenimientos || 0} mantenimientos, ${r.gastos || 0} gastos`, "ok");
+    renderCurrent();
+  } catch (e) {
+    if (m) m.textContent = "Error: " + e.message;
+    toast("No se pudo sincronizar: " + e.message, "err");
+    if (btn) { btn.disabled = false; btn.textContent = "Sincronizar Flota"; }
+  }
+}
+
 function viewAdmin() {
   if (!can("tablas_ver")) {
     $("#content").innerHTML = `<div class="card"><div class="alert alert-error">Acceso restringido. Tu perfil no puede ver las tablas.</div></div>`;
@@ -2004,12 +2425,17 @@ function viewAdmin() {
   renderCatalog();
 }
 
+function catalogFields(cat) {
+  // Con Supabase Auth activo, la contrasena la maneja Auth: se oculta del panel.
+  return cat.fields.filter((f) => !(f.key === "PASSWORD" && Store.authEnabled && Store.authEnabled()));
+}
+
 function renderCatalog() {
   const key = state.adminTab;
   const cat = CATALOGS[key];
   const rows = Store.all(cat.table);
   const host = $("#catalog-host");
-  const cols = cat.fields;
+  const cols = catalogFields(cat);
   const editable = !!canEditTable(key) && !cat.readonly;
 
   host.innerHTML = `
@@ -2053,6 +2479,7 @@ function catalogFieldHTML(f, row) {
 function openCatalogForm(key, idx) {
   if (!canEditTable(key)) { toast("Tu perfil no puede modificar esta tabla.", "err"); return; }
   const cat = CATALOGS[key];
+  const fields = catalogFields(cat);
   const row = idx == null ? {} : Store.all(cat.table)[idx];
   if (idx == null) {
     if (cat.fields.some((f) => f.key === "FECHA_CREACION")) row.FECHA_CREACION = today();
@@ -2060,7 +2487,7 @@ function openCatalogForm(key, idx) {
   }
   openModal(`
     <h3>${idx == null ? "Nuevo" : "Editar"} - ${esc(cat.label)}</h3>
-    <div class="grid grid-2">${cat.fields.map((f) => catalogFieldHTML(f, row)).join("")}</div>
+    <div class="grid grid-2">${fields.map((f) => catalogFieldHTML(f, row)).join("")}</div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" id="btn-cat-save">Guardar</button>
@@ -2068,11 +2495,13 @@ function openCatalogForm(key, idx) {
 
   $("#btn-cat-save").onclick = () => {
     const obj = {};
-    cat.fields.forEach((f) => {
+    fields.forEach((f) => {
       const el = $(`[data-cfield="${f.key}"]`);
       obj[f.key] = f.type === "number" && el.value !== "" ? Number(el.value) : el.value.trim();
     });
-    for (const f of cat.fields) {
+    // Conserva las columnas privadas (p. ej. PASSWORD en modo offline).
+    ((typeof PRIVATE_COLUMNS !== "undefined" && PRIVATE_COLUMNS[cat.table]) || []).forEach((k) => { if (row[k] != null) obj[k] = row[k]; });
+    for (const f of fields) {
       if (f.required && !obj[f.key]) { toast(`El campo "${f.label}" es obligatorio`, "err"); return; }
     }
     const matchRow = (r, o) => cat.pk.every((k) => String(r[k]) === String(o[k]));
@@ -2212,7 +2641,7 @@ function barRow(label, value, max, rightText, iconHTML) {
   return `<div class="bar-row">
     <div class="bar-label">${iconHTML ? iconHTML + " " : ""}${esc(label)}</div>
     <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-    <div class="bar-value">${rightText != null ? rightText : value}</div>
+    <div class="bar-value">${esc(rightText != null ? rightText : value)}</div>
   </div>`;
 }
 function groupCount(rows, keyFn) {
@@ -2380,7 +2809,8 @@ function columnsOfTable(table) {
   const rows = (SEED[table] && SEED[table].length) ? SEED[table] : Store.all(table);
   const cols = [];
   rows.forEach((r) => Object.keys(r).forEach((k) => { if (!cols.includes(k)) cols.push(k); }));
-  return cols;
+  const priv = (typeof PRIVATE_COLUMNS !== "undefined" && PRIVATE_COLUMNS[table]) || [];
+  return cols.filter((c) => !priv.includes(c));
 }
 
 function inferSQLType(rows, col) {
@@ -2565,7 +2995,47 @@ function copyText(text) {
 }
 
 function openCloudModal() {
+  const esAdmin = !!(state.user && String(state.user.ROL).toLowerCase() === "admin");
   const hasCloud = Store.cloudEnabled();
+
+  // Usuarios que NO son admin: solo los botones de sincronizacion, sin la
+  // configuracion (URL, llave, esquema) ni los pasos tecnicos.
+  if (!esAdmin) {
+    openModal(`
+      <h3>Nube (datos compartidos)</h3>
+      <p class="muted small">${hasCloud
+        ? "Usa estos botones para traer o enviar los datos compartidos de este dispositivo."
+        : "La nube no esta configurada en este dispositivo. Pide a un administrador que la active."}</p>
+      <div class="toolbar">
+        <button class="btn" id="btn-cloud-sync" ${hasCloud ? "" : "disabled"}>Sincronizar</button>
+        <button class="btn" id="btn-cloud-push" ${hasCloud ? "" : "disabled"}>Enviar mis cambios</button>
+        <button class="btn" id="btn-cloud-pull" ${hasCloud ? "" : "disabled"}>Bajar datos</button>
+      </div>
+      <div id="cloud-msg" class="hidden"></div>
+      <div class="modal-actions">
+        <button class="btn btn-primary" id="btn-cloud-close">Cerrar</button>
+      </div>`);
+
+    const msg = (text, cls) => { const m = $("#cloud-msg"); m.className = "alert " + (cls || "alert-info") + " small"; m.textContent = text; };
+    $("#btn-cloud-close").onclick = () => closeModal();
+    $("#btn-cloud-sync").onclick = async () => {
+      msg("Sincronizando...");
+      try { await Store.cloudPushAll(); await Store.cloudPullAll(); msg("Datos sincronizados.", "alert-success"); syncStateText(); renderCurrent(); toast("Datos sincronizados", "ok"); }
+      catch (e) { msg("No se pudo sincronizar: " + e.message, "alert-error"); }
+    };
+    $("#btn-cloud-push").onclick = async () => {
+      msg("Enviando...");
+      try { const r = await Store.cloudPushAll(); const total = r.reduce((a, x) => a + (x.count || 0), 0); msg(`Enviados ${total} registros.`, "alert-success"); syncStateText(); }
+      catch (e) { msg("No se pudo enviar: " + e.message, "alert-error"); }
+    };
+    $("#btn-cloud-pull").onclick = async () => {
+      msg("Bajando...");
+      try { await Store.cloudPullAll(); msg("Datos descargados.", "alert-success"); syncStateText(); renderCurrent(); }
+      catch (e) { msg("No se pudo bajar: " + e.message, "alert-error"); }
+    };
+    return;
+  }
+
   openModal(`
     <h3>Nube (datos compartidos)</h3>
     <p class="muted small">Conecta un proyecto de Supabase para que todos los telefonos y PCs vean los mismos datos. Sin configurarlo, la app funciona solo con los datos de este dispositivo.</p>
@@ -2596,7 +3066,10 @@ function openCloudModal() {
     </div>`);
 
   const msg = (text, cls) => { const m = $("#cloud-msg"); m.className = "alert " + (cls || "alert-info") + " small"; m.textContent = text; };
-  const saveConfig = () => Store.setCloud($("#cloud-url").value, $("#cloud-key").value);
+  const saveConfig = () => {
+    const u = $("#cloud-url"), k = $("#cloud-key");
+    return (u && k) ? Store.setCloud(u.value, k.value) : { url: Store.cloud.url, key: Store.cloud.key };
+  };
 
   $("#btn-cloud-close").onclick = () => closeModal();
   $("#btn-cloud-save").onclick = () => {
@@ -2675,9 +3148,19 @@ function bindEvents() {
     btnInstall.classList.add("hidden");
   });
 
+  // Menu lateral desplegable (solo movil): boton hamburguesa + fondo.
+  const openNav = (on) => {
+    const app = $("#app-view");
+    app.classList.toggle("nav-open", !!on);
+    const btn = $("#btn-menu");
+    if (btn) btn.setAttribute("aria-expanded", on ? "true" : "false");
+  };
+  $("#btn-menu").addEventListener("click", () => openNav(!$("#app-view").classList.contains("nav-open")));
+  $("#nav-backdrop").addEventListener("click", () => openNav(false));
+
   $("#nav").addEventListener("click", (e) => {
     const b = e.target.closest("[data-nav]");
-    if (b) route(b.dataset.nav);
+    if (b) { route(b.dataset.nav); openNav(false); }
   });
 
   const content = $("#content");
@@ -2712,6 +3195,9 @@ function bindEvents() {
     if (t.id === "btn-save-viaje") return saveViaje();
     if (t.id === "btn-reset-viaje" || t.id === "btn-cancel-edit") { resetForm(); afterForm(); return; }
     if (t.id === "btn-export-viajes") return download("viajes.csv", toCSV(filteredViajes(), visibleViajeColumns()));
+    if (t.id === "btn-flota-sync") return syncFlotaNow();
+    const ft = t.closest("[data-flotatab]");
+    if (ft) { state.flotaTab = ft.dataset.flotatab; renderCurrent(); return; }
     if (t.id === "btn-clear-filtros") { state.consulta = { cliente: "", status: "", desde: "", hasta: "", texto: "" }; renderCurrent(); return; }
     if (t.id === "btn-toggle-eliminados") { state.consultarEliminados = !state.consultarEliminados; renderCurrent(); return; }
     if (t.id === "btn-export-sql") return download("esquema_viajes.sql", generateSQL(), "text/plain;charset=utf-8");
@@ -2764,6 +3250,8 @@ document.addEventListener("DOMContentLoaded", () => {
   try { Store.init(); } catch (e) { console.error("Store.init", e); }
   try { ensurePermisos(); } catch (e) { console.error("ensurePermisos", e); }
   bindEvents();
+  // Si ya hay una sesion de Supabase Auth en este dispositivo, entra directo.
+  try { restoreCloudSession(); } catch (e) { console.error("restoreCloudSession", e); }
   // Diagnostico visible en caso de que no haya usuarios cargados
   if (!Store.all("usuarios").length) {
     const err = $("#login-error");

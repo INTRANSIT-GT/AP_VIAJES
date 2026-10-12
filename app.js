@@ -150,12 +150,32 @@ function statusOptionsForForm() {
   return STATUS_OPERATIVO;
 }
 
-/* Regla de edicion de un viaje segun su estatus y permisos. */
+/* Usuario (correo) del que tiene la sesion. */
+function miUsuario() { return String((state.user && state.user.USUARIO) || "").toLowerCase().trim(); }
+/* ¿El viaje lo registro este usuario? (columna USUARIO_EDITOR) */
+function esDuenoViaje(v) {
+  const me = miUsuario();
+  return !!me && !!v && String(v.USUARIO_EDITOR || "").toLowerCase().trim() === me;
+}
+
+/* Regla de edicion de un viaje:
+ * - Admin: ve y modifica todos.
+ * - Operativo: solo modifica los viajes QUE EL REGISTRO (USUARIO_EDITOR).
+ * - Gerencia / validador / facturacion: solo ven, no modifican. */
 function canEditViaje(v) {
   if (!v || v.ELIMINADO === "Si") return false;
+  if (state.user.ROL === "admin") return true;
+  if (state.user.ROL !== "operativo") return false;
   if (!can("viajes_editar")) return false;
-  if (state.user.ROL !== "admin" && STATUS_BLOQUEADOS.includes(v.STATUS)) return false;
-  return true;
+  if (STATUS_BLOQUEADOS.includes(v.STATUS)) return false;
+  return esDuenoViaje(v);
+}
+
+/* Borrado: admin o el operativo dueno del viaje con permiso de eliminar. */
+function puedeEliminarViaje(v) {
+  if (!v || v.ELIMINADO === "Si") return false;
+  if (state.user.ROL === "admin") return true;
+  return can("viajes_eliminar") && esDuenoViaje(v);
 }
 
 /* ------------------------------- Toast ---------------------------- */
@@ -723,6 +743,7 @@ function saveViaje() {
     VIAJES_WORKFLOW_COLUMNS.forEach((k) => { if (row[k] === undefined) row[k] = ""; });
     VIAJES_TARIFA_COLUMNS.forEach((k) => { if (row[k] === undefined) row[k] = ""; });
     if (!row.ELIMINADO) row.ELIMINADO = "No";
+    row.USUARIO_EDITOR = state.user ? state.user.USUARIO : "";
     Store.insert("viajes", row);
     toast(`Viaje ${row.ID_VIAJE} registrado correctamente`, "ok");
   }
@@ -826,7 +847,7 @@ function viewConsultar() {
         <table>
           <thead><tr>
             <th>ID Viaje</th><th>Codigo</th><th>Cliente</th><th>Unidad</th><th>Piloto</th>
-            <th>Ruta</th><th>Status</th><th>Fecha Plan</th><th>KM</th><th>Carga</th><th>Viaticos</th><th>Factura / Comentario</th><th></th>
+            <th>Ruta</th><th>Status</th><th>Fecha Plan</th><th>KM</th><th>Carga</th><th>Viaticos</th><th>Factura / Comentario</th><th>Registro</th><th></th>
           </tr></thead>
           <tbody>
             ${rows.length ? rows.map((r) => `
@@ -843,12 +864,13 @@ function viewConsultar() {
                 <td>${esc(r.CARGA_VIAJE)}</td>
                 <td>${esc(r["Viáticos"])}</td>
                 <td class="wrap">${r.NUMERO_FACTURA ? "Factura " + esc(r.NUMERO_FACTURA) : (r.COMENTARIO_VALIDACION ? esc(r.COMENTARIO_VALIDACION) : "")}</td>
+                <td>${esc(r.USUARIO_EDITOR)}</td>
                 <td>
                   <button class="btn btn-sm" data-ver="${esc(r.ID_VIAJE)}">Ver</button>
                   ${canEditViaje(r) ? `<button class="btn btn-sm btn-primary" data-edit="${esc(r.ID_VIAJE)}">Editar</button>` : ""}
-                  ${puedeEliminar && r.ELIMINADO !== "Si" ? `<button class="btn btn-sm btn-danger" data-del-viaje="${esc(r.ID_VIAJE)}">Eliminar</button>` : ""}
+                  ${puedeEliminarViaje(r) ? `<button class="btn btn-sm btn-danger" data-del-viaje="${esc(r.ID_VIAJE)}">Eliminar</button>` : ""}
                 </td>
-              </tr>`).join("") : `<tr><td colspan="13" class="muted" style="text-align:center;padding:24px">Sin viajes para los filtros seleccionados.</td></tr>`}
+              </tr>`).join("") : `<tr><td colspan="14" class="muted" style="text-align:center;padding:24px">Sin viajes para los filtros seleccionados.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -859,6 +881,7 @@ function eliminarViaje(id) {
   const v = Store.all("viajes").find((x) => x.ID_VIAJE === id);
   if (!v) return;
   if (!can("viajes_eliminar")) { toast("Tu perfil no puede eliminar viajes.", "err"); return; }
+  if (!puedeEliminarViaje(v)) { toast("Solo puedes eliminar los viajes que tu registraste.", "err"); return; }
   if (!confirm(`¿Eliminar el viaje ${id}? Se conserva un registro de auditoria (no se borra fisicamente).`)) return;
   Store.update("viajes", (r) => r.ID_VIAJE === id, { ELIMINADO: "Si", ELIMINADO_POR: state.user.USUARIO, FECHA_ELIMINACION: nowStr() });
   addBitacora("Eliminar viaje " + id);

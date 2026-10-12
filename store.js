@@ -39,6 +39,7 @@ const VIAJES_COLUMNS = [
 const VIAJES_WORKFLOW_COLUMNS = [
   "REVISADO_POR", "FECHA_REVISION", "NUMERO_FACTURA", "FECHA_FACTURA", "COMENTARIO_VALIDACION",
   "ELIMINADO", "ELIMINADO_POR", "FECHA_ELIMINACION",
+  "USUARIO_EDITOR",
 ];
 
 /* Columnas de tarifa/combustible cargadas automaticamente al viaje.
