@@ -8,7 +8,7 @@
  *   - Recursos externos (CDN de SheetJS): red primero, con copia en cache.
  * ===================================================================== */
 
-const CACHE = "registro-viajes-v6";
+const CACHE = "registro-viajes-v7";
 
 const ASSETS = [
   "./",
@@ -93,15 +93,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Recursos propios: cache primero.
+  // Recursos propios (css/js/iconos): RED PRIMERO con respaldo en cache.
+  // Asi los cambios que subes se reflejan al recargar (cuando hay red) y la
+  // app sigue funcionando sin conexion (sirve la copia guardada).
   event.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req).then((res) => {
+    fetch(req)
+      .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
         return res;
-      });
-    })
+      })
+      .catch(() => caches.match(req))
   );
 });
