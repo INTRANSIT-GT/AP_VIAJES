@@ -17,8 +17,8 @@
  * Supabase Auth. Ej.: usuario "admin" -> "admin@intransit.gt".
  * ===================================================================== */
 window.APP_CONFIG = {
-  SUPABASE_URL: "",
-  SUPABASE_ANON_KEY: "",
+  SUPABASE_URL: "https://bocgzjupocnvjehklxhs.supabase.co/",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJvY2d6anVwb2NudmplaGtseGhzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MzcyNzYsImV4cCI6MjEwNzMxMzI3Nn0.pSj0Is7h2sEQ8A9A-JLSRfjCy3I_HGCnPEc8ok6Gbng",
   AUTH_EMAIL_DOMAIN: "intransit.gt",
   /* Supabase Auth (login con sesion). DESACTIVADO por ahora:
    * la app valida el login contra la tabla local `usuarios`.
