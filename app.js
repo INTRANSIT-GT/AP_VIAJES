@@ -748,9 +748,11 @@ function statusBadge(s) {
 function viajesVisibles(incluirEliminados) {
   let rows = Store.all("viajes");
   if (!incluirEliminados) rows = rows.filter((v) => v.ELIMINADO !== "Si");
-  if (can("viajes_scope_facturado")) {
+  if (can("viajes_ver_todos")) {
+    // Ve todo (admin y quien tenga el permiso): sin filtro de cliente ni estado.
+  } else if (can("viajes_scope_facturado")) {
     rows = rows.filter((v) => [STATUS_APROBADO, STATUS_FACTURADO].includes(v.STATUS));
-  } else if (!can("viajes_ver_todos")) {
+  } else {
     const ids = allowedClientes().map((c) => c.ID_CLIENTE);
     rows = rows.filter((v) => ids.includes(v["ID-CLIENTE"]));
   }
